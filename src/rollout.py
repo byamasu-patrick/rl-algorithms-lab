@@ -53,7 +53,7 @@ def collect_fixed_rollout(agent, writer, dtype, device, envs, obs, dones, values
 
     return (obs, actions, logprobs, rewards, values, next_obs, next_done, global_step)
 
-def collect_episode_rollout(agent, writer, dtype, device, envs, return_deque, length_deque, global_step, args):
+def collect_episode_rollout(agent, writer, dtype, device, envs, return_deque, length_deque, next_obs, global_step, args):
     """
     Collect complete episodes from vectorized environments.
     Args:
@@ -64,6 +64,7 @@ def collect_episode_rollout(agent, writer, dtype, device, envs, return_deque, le
         envs: Vectorized environments.
         return_deque: Deque to store episodic returns.
         length_deque: Deque to store episodic lengths.
+        next_obs: Tensor to store the next observations.
         global_step: Current global step count.
         args: Command-line arguments containing hyperparameters.
     """
@@ -119,7 +120,7 @@ def collect_episode_rollout(agent, writer, dtype, device, envs, return_deque, le
     b_logprobs = torch.stack(b_logprobs_list, dim=0)
     b_values = torch.stack(b_values_list, dim=0)
 
-    return (b_obs, b_actions, b_logprobs, b_values, per_env_rewards_list, global_step, per_env_values_list)
+    return (b_obs, b_actions, b_logprobs, b_values, per_env_rewards_list, global_step, next_obs, per_env_values_list)
 
 def flatten_rollout_batch(obs, logprobs, actions, values, rewards, envs, args):
     """

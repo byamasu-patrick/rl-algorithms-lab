@@ -253,8 +253,8 @@ if __name__ == "__main__":
                 next_obs = torch.tensor(next_obs).to(device)
 
             # We collect per env first so indexes match between obs, actions, and returns across episodes
-            (b_obs, b_actions, b_logprobs, b_values, per_env_rewards_list, global_step, per_env_values_list) = collect_episode_rollout(
-                agent, writer, dtype, device, envs, return_deque, length_deque, args
+            (b_obs, b_actions, b_logprobs, b_values, per_env_rewards_list, global_step, next_obs, per_env_values_list) = collect_episode_rollout(
+                agent, writer, dtype, device, envs, return_deque, length_deque, next_obs, global_step, args
             )
 
         t_collection_end = time.perf_counter()

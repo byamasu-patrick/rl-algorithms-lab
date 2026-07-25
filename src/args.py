@@ -4,8 +4,9 @@ Arguments for configuring the training experiment
 
 import argparse
 import os
+from argparse import ArgumentParser
 
-def add_args(parser):
+def add_args(parser: ArgumentParser):
     parser.add_argument("--exp-name", type=str, default=os.path.basename(__file__)[: -len(".py")],
                         help="the name of this experiment")
     parser.add_argument("--run-name", type=str, default=None,
@@ -20,7 +21,7 @@ def add_args(parser):
                         help="if toggled, this experiment will be tracked with Weights and Biases")
     parser.add_argument("--wandb-project-name", type=str, default="grpo2",
                         help="the wandb's project name")
-    parser.add_argument("--wandb-entity", type=str, default="byamasupatrick",
+    parser.add_argument("--wandb-entity", type=str, default="byamasupatrick-rexplore-research-labs",
                         help="the entity (team) of wandb's project")
     parser.add_argument("--capture-video", type=bool, default=False, action=argparse.BooleanOptionalAction,
                         help="whether to capture videos of the agent performances (check out `videos` folder)")
