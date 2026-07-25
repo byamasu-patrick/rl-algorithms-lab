@@ -296,7 +296,7 @@ if __name__ == "__main__":
                 device
             )
         else:  # Monte Carlo Returns
-            b_returns, per_env_returns = calculate_mc_returns(
+            (b_returns, per_env_returns, b_returns_list) = calculate_mc_returns(
                 per_env_rewards_list, args, per_env_returns, b_returns_list, dtype, device
             )
         # ===== STAGE 3: BASELINE CALCULATION (UNIFIED) =====

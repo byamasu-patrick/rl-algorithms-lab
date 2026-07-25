@@ -188,3 +188,5 @@ def calculate_mc_returns(
         per_env_returns.append(env_returns)
         b_returns_list.extend(env_returns)
     b_returns = torch.tensor(b_returns_list, dtype=dtype, device=device)
+
+    return (b_returns, per_env_returns, b_returns_list)
