@@ -1,8 +1,19 @@
-# Learning Without Critics? Revisiting GRPO in Classical Reinforcement Learning Environments
+# Reinforcement Learning Algorithms Lab
 
-This is the code for the paper "Learning Without Critics? Revisiting GRPO in Classical Reinforcement Learning Environments".
-All the experiments are defined in the `experiment.sh` script. To reproduce the experiments, you can use the following methods:
+A modular research repository for implementing, reproducing, and extending reinforcement learning algorithms.
 
+This repository is inspired by the paper **"Learning Without Critics? Revisiting GRPO in Classical Reinforcement Learning Environments"** and extends its ideas to investigate Group Relative Policy Optimization (GRPO) in broader reinforcement learning settings.
+
+The current research focuses on:
+
+- Reproducing the results of the original GRPO paper.
+- Studying critic-free reinforcement learning algorithms.
+- Extending GRPO to partially observable environments (POMDPs).
+- Investigating different trajectory and group sampling strategies.
+- Comparing return estimators, baseline methods, and variance reduction techniques.
+- Developing modular implementations that facilitate algorithmic experimentation, reproducibility, and future research.
+
+The repository emphasizes clean, modular implementations that are easy to understand, modify, and extend for reinforcement learning research.
 ## Without Docker
 
 1. Install UV.
