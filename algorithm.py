@@ -446,7 +446,7 @@ if __name__ == "__main__":
             time_collection=time_collection,
             time_preprocessing=time_preprocessing,
             time_update=time_update,
-            rewards=rewards,
+            rewards=rewards if args.num_steps > 0 else None,
             per_env_rewards_list=per_env_rewards_list,
             b_advantages=b_advantages,
             b_returns=b_returns,
