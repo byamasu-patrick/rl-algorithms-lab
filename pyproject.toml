@@ -1,9 +1,9 @@
 [project]
-name = "revisiting-grpo"
+name = "rl-algorithms-lab"
 version = "2.0.0b1"
 description = "High-quality single file implementation of Deep Reinforcement Learning algorithms with research-friendly features"
 authors = [{ name = "anonymous", email = "anonymous@authors.com" }]
-requires-python = ">=3.10.0,<3.13"
+requires-python = ">=3.10.0,<3.11"
 readme = "README.md"
 license = "MIT"
 keywords = [
@@ -52,8 +52,8 @@ pettingzoo = [
     "multi-agent-ale-py==0.1.11",
 ]
 jax = [
-    "jax==0.4.8",
-    "jaxlib==0.4.7",
+    "jax>=0.4.30",
+    "jaxlib>=0.4.30",
     "flax==0.6.8",
     "optax==0.1.4",
     "chex==0.1.5",
