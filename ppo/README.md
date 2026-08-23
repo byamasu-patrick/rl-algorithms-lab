@@ -129,24 +129,14 @@ Every run writes to a directory named `{gym_id}__{exp_name}__{seed}__{unix_times
 One **iteration** of the loop consists of three stages, repeated
 `num_updates = total_timesteps // batch_size` times.
 
-```text
-                      ┌────────────────────────────────────────────┐
-                      │  1. ROLLOUT   num_steps × num_envs         │
-                      │     collect obs, actions, logprobs,        │
-                      │     rewards, dones, values                 │
-                      └──────────────────────┬─────────────────────┘
-                                             │
-                      ┌──────────────────────▼─────────────────────┐
-                      │  2. ADVANTAGE ESTIMATION                   │
-                      │     GAE(γ, λ) backwards over the rollout,  │
-                      │     bootstrapping V(s_T) at the boundary   │
-                      └──────────────────────┬─────────────────────┘
-                                             │
-                      ┌──────────────────────▼─────────────────────┐
-                      │  3. OPTIMIZATION                           │
-                      │     update_epochs passes over the batch,   │
-                      │     shuffled into num_minibatches chunks   │
-                      └────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    R["<b>1. ROLLOUT</b><br/>num_steps × num_envs environment steps<br/>store obs, actions, logprobs, rewards, dones, values"]
+    A["<b>2. ADVANTAGE ESTIMATION</b><br/>GAE(γ, λ) accumulated backwards over the rollout<br/>bootstrap V(s_T) at the rollout boundary"]
+    O["<b>3. OPTIMIZATION</b><br/>update_epochs passes over the flattened batch<br/>shuffled into num_minibatches chunks"]
+
+    R --> A --> O
+    O -.->|repeat num_updates times| R
 ```
 
 ### Batch arithmetic
