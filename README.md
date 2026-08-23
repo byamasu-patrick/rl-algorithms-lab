@@ -2,13 +2,13 @@
 
 A collection of deep reinforcement learning implementations and experiments, written to be read.
 Each subdirectory is a self-contained project with its own dependencies, entry point, and
-documentation — there is no shared framework layer to trace through, and no abstraction that hides
+documentation. There is no shared framework layer to trace through, and no abstraction that hides
 the algorithm from you.
 
 | Project | What it is | Status |
 | --- | --- | --- |
 | [ppo/](ppo/) | A from-scratch re-implementation of **PPO** for studying the algorithm one detail at a time. Single training loop, every hyperparameter and design choice exposed as a flag. | Working on classic control |
-| [revisiting-grpo/](revisiting-grpo/) | An experiment harness for asking **whether the critic is necessary** — swapping the learned value baseline for group-statistic alternatives across a large sweep. | Reproduction of published results |
+| [revisiting-grpo/](revisiting-grpo/) | An experiment harness for asking **whether the critic is necessary**, swapping the learned value baseline for group-statistic alternatives across a large sweep. | Reproduction of published results |
 
 ---
 
@@ -37,12 +37,12 @@ the algorithm from you.
 
 ## The two projects
 
-### `ppo/` — Proximal Policy Optimization, from scratch
+### `ppo/`: Proximal Policy Optimization, from scratch
 
 A single readable training loop implementing PPO ([Schulman et al., 2017](https://arxiv.org/abs/1707.06347)):
 clipped surrogate objective, generalized advantage estimation, vectorized rollout collection, and
-shuffled minibatch updates. Written in the CleanRL single-file style — the algorithm lives in one
-file so the control flow is visible end to end.
+shuffled minibatch updates. Written in the CleanRL single-file style, so the algorithm lives in one
+file and the control flow is visible end to end.
 
 The point is ablation. Every implementation detail that PPO's performance actually depends on is a
 command-line flag: advantage normalization, value-loss clipping, learning-rate annealing, the
@@ -57,11 +57,11 @@ python algorithm.py                    # CartPole-v1, 25k steps
 tensorboard --logdir runs
 ```
 
-Full documentation — algorithm walkthrough with the equations mapped to line numbers, all 22 CLI
-flags, how to read each logged metric, and the known deviations from the reference implementation —
-is in **[ppo/README.md](ppo/README.md)**.
+Full documentation is in **[ppo/README.md](ppo/README.md)**: an algorithm walkthrough with the
+equations mapped to line numbers, all 22 CLI flags, how to read each logged metric, and the known
+deviations from the reference implementation.
 
-### `revisiting-grpo/` — is the critic doing the work?
+### `revisiting-grpo/`: is the critic doing the work?
 
 PPO learns a value function to center its advantages. GRPO-style methods drop it, using statistics
 over a *group* of sampled trajectories as the baseline instead. This project asks how much that
@@ -69,13 +69,13 @@ actually costs in classical RL environments, where the critic is cheap and well-
 
 The harness makes the baseline a swappable component:
 
-- **Return estimators** — `gae`, `td` (n-step), or `mc` (Monte Carlo), via `--return-type`
-- **Baselines** — `value` (a learned critic), `constant`, `uniform`, `stats`, `batch_mean`, `ema`,
+- **Return estimators**: `gae`, `td` (n-step), or `mc` (Monte Carlo), via `--return-type`
+- **Baselines**: `value` (a learned critic), `constant`, `uniform`, `stats`, `batch_mean`, `ema`,
   or `same_seed_mean`, via `--baseline-type`
-- **Critic on/off** — `--no-use-value-fn` removes the value network and its loss entirely
+- **Critic on/off**: `--no-use-value-fn` removes the value network and its loss entirely
 
-[experiment.sh](revisiting-grpo/experiment.sh) enumerates the full sweep across three dimensions —
-baseline choice (D1), discount and horizon (D2), and group size (D3) — over 5 environments
+[experiment.sh](revisiting-grpo/experiment.sh) enumerates the full sweep across three dimensions:
+baseline choice (D1), discount and horizon (D2), and group size (D3). Each covers 5 environments
 (`CartPole-v1`, `Acrobot-v1`, `MountainCarContinuous-v0`, `HalfCheetah-v4`, `Humanoid-v4`) × 10
 seeds. It shards by instance index so the sweep can be split across terminals or machines, and skips
 runs whose output directory already holds a `config.yaml`, making it resumable.
@@ -121,7 +121,7 @@ Both projects log to TensorBoard by default and can mirror to Weights & Biases w
 (export `WANDB_API_KEY`, or run `wandb login`, first). Run directories are named
 `{env}__{exp_name}__{seed}__{timestamp}` so runs never collide.
 
-`runs/`, `videos/`, and `wandb/` are gitignored repository-wide — experiment output stays local.
+`runs/`, `videos/`, and `wandb/` are gitignored repository-wide, so experiment output stays local.
 
 ---
 
@@ -130,7 +130,7 @@ Both projects log to TensorBoard by default and can mirror to Weights & Biases w
 `revisiting-grpo/` builds on the code released with *Learning Without Critics? Revisiting GRPO in
 Classical Reinforcement Learning Environments* (de Oliveira et al., Latinx in AI @ NeurIPS 2025),
 which itself derives from [CleanRL](https://github.com/vwxyzjn/cleanrl). If you use that work,
-please cite the paper — the BibTeX entry is in
+please cite the paper. The BibTeX entry is in
 [revisiting-grpo/README.md](revisiting-grpo/README.md#citing).
 
 `ppo/` is an independent from-scratch implementation, written for study, and follows CleanRL's

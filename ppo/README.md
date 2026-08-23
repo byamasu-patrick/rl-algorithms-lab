@@ -4,7 +4,7 @@ A from-scratch re-implementation of **Proximal Policy Optimization** (PPO), the 
 algorithm of [Schulman et al., 2017](https://arxiv.org/abs/1707.06347). The goal is not to be a
 general-purpose RL library but to reproduce and study the core algorithm through a single readable
 training loop: policy and value networks, the clipped surrogate objective, generalized advantage
-estimation (GAE), vectorized trajectory collection, and minibatch updates — with every moving part
+estimation (GAE), vectorized trajectory collection, and minibatch updates, with every moving part
 exposed as a command-line flag so training dynamics can be ablated one detail at a time.
 
 The implementation follows the CleanRL single-file style: the entire algorithm lives in
@@ -61,7 +61,7 @@ poetry install --no-root
 
 `--no-root` installs only the dependencies. The `[tool.poetry]` section declares a `ppo` package
 under `src/`, but the code is currently laid out as a flat script plus `src/agent.py`, so there is
-no distributable package to build — the training loop is invoked directly as a script.
+no distributable package to build. The training loop is invoked directly as a script.
 
 ### With pip
 
@@ -159,7 +159,7 @@ Because `num_updates` uses integer division, the actual number of environment st
 [`gym.vector.SyncVectorEnv`](algorithm.py#L128-L131). For `num_steps` steps the agent samples an
 action, and the observation, action, log-probability, reward, done flag, and value estimate are
 written into pre-allocated `(num_steps, num_envs)` tensors on the training device. Actions are
-sampled under `torch.no_grad()` — the log-probabilities stored here become the *old* policy
+sampled under `torch.no_grad()`, and the log-probabilities stored here become the *old* policy
 $\pi_{\theta_\mathrm{old}}(a \mid s)$ that the surrogate objective ratios against.
 
 Environments are wrapped in `RecordEpisodeStatistics`, so completed episodes surface their return
@@ -195,9 +195,10 @@ bias-variance trade-off, and exists specifically so the two can be compared unde
 ### 3. Optimization
 
 The `(num_steps, num_envs)` tensors are flattened to a flat batch, then for `update_epochs`
-passes the batch indices are shuffled and consumed in `minibatch_size` chunks. For each minibatch:
+passes the batch indices are shuffled and consumed in `minibatch_size` chunks. For each minibatch
+($\hat{\mathbb{E}}_t$ below denotes the mean over that minibatch):
 
-**Policy loss** — the clipped surrogate objective, with the ratio computed in log-space for
+**Policy loss:** the clipped surrogate objective, with the ratio computed in log-space for
 numerical stability:
 
 $$
@@ -205,25 +206,25 @@ $$
 $$
 
 $$
-L^{\mathrm{policy}} = -\min\Big(\rho_t(\theta)\,\hat{A}_t,\;\; \mathrm{clip}\big(\rho_t(\theta),\, 1-\epsilon,\, 1+\epsilon\big)\,\hat{A}_t\Big)
+L^{\mathrm{policy}} = -\hat{\mathbb{E}}_t\Big[\min\big(\rho_t(\theta)\,\hat{A}_t,\;\; \mathrm{clip}(\rho_t(\theta),\, 1-\epsilon,\, 1+\epsilon)\,\hat{A}_t\big)\Big]
 $$
 
 Taking `torch.max` of the two *negated* terms ([algorithm.py:258-260](algorithm.py#L258-L260)) is
 the minimization-form equivalent of the paper's `min` over the un-negated objective.
 
-With `--norm-adv True` (default), advantages are standardized **per minibatch** — not per batch —
+With `--norm-adv True` (default), advantages are standardized **per minibatch**, not per batch,
 matching the reference implementations.
 
-**Value loss** — mean-squared error against the GAE returns, optionally clipped to a trust region
+**Value loss:** mean-squared error against the GAE returns, optionally clipped to a trust region
 around the old value estimate ([algorithm.py:264-275](algorithm.py#L264-L275)):
 
 $$
-L^{\mathrm{value}} = \tfrac{1}{2}\max\Big(\big(V_\theta(s) - R\big)^2,\;\; \big(V_{\mathrm{old}}(s) + \mathrm{clip}\big(V_\theta(s) - V_{\mathrm{old}}(s),\, -\epsilon,\, +\epsilon\big) - R\big)^2\Big)
+L^{\mathrm{value}} = \tfrac{1}{2}\,\hat{\mathbb{E}}_t\Big[\max\big((V_\theta(s_t) - R_t)^2,\;\; (V_{\mathrm{old}}(s_t) + \mathrm{clip}(V_\theta(s_t) - V_{\mathrm{old}}(s_t),\, -\epsilon,\, +\epsilon) - R_t)^2\big)\Big]
 $$
 
 Note that the value-clipping range reuses `--clip-coef`, the same $\epsilon$ as the policy clip.
 
-**Entropy bonus** — the mean policy entropy is subtracted from the loss to discourage premature
+**Entropy bonus:** the mean policy entropy is subtracted from the loss to discourage premature
 determinism.
 
 **Total loss** ([algorithm.py:278](algorithm.py#L278)):
@@ -235,10 +236,10 @@ $$
 Gradients are clipped to `--max-grad-norm` (global L2 norm) before each Adam step. Adam uses
 `eps=1e-5` rather than the PyTorch default `1e-8`, a detail that measurably affects PPO stability.
 
-**Learning-rate annealing** — with `--annealing-lr True` (default), the learning rate decays
+**Learning-rate annealing:** with `--annealing-lr True` (default), the learning rate decays
 linearly from `--learning-rate` to 0 across the run: $\eta_t = \big(1 - \frac{t-1}{N_\mathrm{updates}}\big)\,\eta_0$.
 
-**KL early stopping** — if `--target-kl` is set, the update loop breaks out after any epoch whose
+**KL early stopping:** if `--target-kl` is set, the update loop breaks out after any epoch whose
 approximate KL exceeds the threshold, capping how far the policy moves per iteration. Disabled by
 default (`None`).
 
@@ -259,8 +260,8 @@ agent starts with high entropy and no accidental early commitment to one action.
 
 The actor emits logits over a `Categorical` distribution. Two entry points:
 
-- `get_value(obs)` — critic only, used for rollout bootstrapping.
-- `get_action_and_value(obs, action=None)` — returns `(action, log_prob, entropy, value)`. Passing
+- `get_value(obs)`: critic only, used for rollout bootstrapping.
+- `get_action_and_value(obs, action=None)`: returns `(action, log_prob, entropy, value)`. Passing
   `action=None` samples a fresh action (rollout); passing a stored action re-evaluates it under the
   current policy (optimization).
 
@@ -336,7 +337,7 @@ tensorboard --logdir runs
 ```
 
 With `--track`, W&B is initialized with `sync_tensorboard=True`, so the same scalars are forwarded
-upstream — there is no separate logging path. The full config is captured via `config=vars(args)`
+upstream. There is no separate logging path. The full config is captured via `config=vars(args)`
 and the source is uploaded with `save_code=True`. Authenticate by exporting `WANDB_API_KEY` or
 running `wandb login` beforehand.
 
@@ -349,7 +350,7 @@ running `wandb login` beforehand.
 `videos/{run_name}/rl-video-episode-N.mp4`.
 
 The video directory is only supplied when `--track` is also set
-([algorithm.py:120](algorithm.py#L120)) — use the two flags together:
+([algorithm.py:120](algorithm.py#L120)), so use the two flags together:
 
 ```bash
 python algorithm.py --track --capture-video
@@ -364,16 +365,16 @@ python algorithm.py --track --capture-video
 | `charts/episodic_return` | The headline number. Logged per completed episode, not averaged. |
 | `charts/episodic_length` | Episode length; on CartPole it tracks return exactly. |
 | `charts/learning_rate` | Confirms the annealing schedule is being applied. |
-| `charts/SPS` | Steps per second — throughput, useful for spotting a device misconfiguration. |
+| `charts/SPS` | Throughput in steps per second. Useful for spotting a device misconfiguration. |
 | `losses/policy_loss` | The clipped surrogate. Hovers near zero and is *not* a progress signal on its own. |
 | `losses/value_loss` | Critic regression error. Should trend down as returns become predictable. |
-| `losses/entropy` | Policy entropy. A healthy run decays gradually; a collapse to ~0 early means premature convergence — raise `--ent-coef`. |
+| `losses/entropy` | Policy entropy. A healthy run decays gradually; a collapse to ~0 early means premature convergence; raise `--ent-coef`. |
 | `losses/approx_kl` | $\mathbb{E}\big[(\rho - 1) - \log \rho\big]$, a low-variance KL estimator. Sustained values above ~0.02 mean each update is moving the policy too far. |
 | `losses/clipfrac` | Fraction of samples hitting the clip boundary. Large values (>0.3) mean the ratio is routinely saturating the trust region. |
 | `losses/explained_variance` | $1 - \operatorname{Var}(R - V) / \operatorname{Var}(R)$. Near 1 means the critic explains the returns; near or below 0 means it is no better than predicting the mean. |
 
 **Caveat on the loss scalars:** `policy_loss`, `value_loss`, `entropy`, `approx_kl`, and `clipfrac`
-are recorded once per iteration from whichever variable is left in scope after the update loop —
+are recorded once per iteration from whichever variable is left in scope after the update loop,
 i.e. the **last minibatch of the last epoch**, not a mean across the update. They are usable as
 trend indicators but are noisier than a properly averaged statistic would be.
 
@@ -413,10 +414,10 @@ patched:
 
 ## References
 
-- Schulman et al., *Proximal Policy Optimization Algorithms* (2017) — [arXiv:1707.06347](https://arxiv.org/abs/1707.06347)
-- Schulman et al., *High-Dimensional Continuous Control Using Generalized Advantage Estimation* (2015) — [arXiv:1506.02438](https://arxiv.org/abs/1506.02438)
-- Huang et al., *The 37 Implementation Details of Proximal Policy Optimization* (2022) — [ICLR Blog Track](https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/)
-- Engstrom et al., *Implementation Matters in Deep RL: A Case Study on PPO and TRPO* (2020) — [arXiv:2005.12729](https://arxiv.org/abs/2005.12729)
+- Schulman et al., *Proximal Policy Optimization Algorithms* (2017). [arXiv:1707.06347](https://arxiv.org/abs/1707.06347)
+- Schulman et al., *High-Dimensional Continuous Control Using Generalized Advantage Estimation* (2015). [arXiv:1506.02438](https://arxiv.org/abs/1506.02438)
+- Huang et al., *The 37 Implementation Details of Proximal Policy Optimization* (2022). [ICLR Blog Track](https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/)
+- Engstrom et al., *Implementation Matters in Deep RL: A Case Study on PPO and TRPO* (2020). [arXiv:2005.12729](https://arxiv.org/abs/2005.12729)
 
 ## License
 
