@@ -1,0 +1,43 @@
+NOTICE
+======
+
+This repository is distributed under the MIT License (see LICENSE). It contains
+both original work and work derived from third-party projects that are also
+MIT-licensed. The MIT License requires that the copyright notices below be
+retained in all copies and substantial portions of the software.
+
+
+ppo/
+----
+
+Original work. Copyright (c) 2026 Byamasu Patrick Paul.
+
+Written from scratch. It adopts the single-file layout popularised by CleanRL as
+a matter of convention, but is not derived from CleanRL source code.
+
+
+revisiting-grpo/
+----------------
+
+Derived work. Copyright (c) 2026 Byamasu Patrick Paul for the modifications made
+in this repository; the upstream copyright holders below retain copyright in the
+code those modifications are applied to.
+
+Upstream chain, most recent first:
+
+  1. Code released with the paper "Learning Without Critics? Revisiting GRPO in
+     Classical Reinforcement Learning Environments" (MIT), by Bryan L. M. de
+     Oliveira, Felipe V. Frujeri, Marcos P. C. M. Queiroz, Luana G. B. Martins,
+     Telma W. de L. Soares, and Luckeciano C. Melo. Latinx in AI @ NeurIPS 2025.
+
+  2. CleanRL (MIT), Copyright (c) 2019 CleanRL developers.
+     https://github.com/vwxyzjn/cleanrl
+
+Academic use of this directory should cite the paper in addition to satisfying
+the licence terms. The BibTeX entry is in revisiting-grpo/README.md.
+
+Note on provenance: neither upstream project's LICENSE file was carried into
+this repository's git history. The notices above are reconstructed from the
+projects' published package metadata and documentation, both of which declare
+MIT. Before redistributing this repository, replace them with the exact text of
+the upstream LICENSE files.

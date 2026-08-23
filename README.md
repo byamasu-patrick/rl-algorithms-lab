@@ -138,4 +138,7 @@ single-file structure by convention.
 
 ## License
 
-MIT.
+MIT, see [LICENSE](LICENSE).
+
+`ppo/` is original work. `revisiting-grpo/` is derived from third-party MIT-licensed projects,
+whose copyright notices are retained in [NOTICE](NOTICE). Both directories carry the same terms.
