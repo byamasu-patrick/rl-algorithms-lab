@@ -421,4 +421,5 @@ patched:
 
 ## License
 
-MIT. See [pyproject.toml](pyproject.toml).
+MIT, see [LICENSE](../LICENSE) at the repository root. This directory is original work;
+provenance for the repository as a whole is recorded in [NOTICE](../NOTICE).
