@@ -160,7 +160,7 @@ Because `num_updates` uses integer division, the actual number of environment st
 action, and the observation, action, log-probability, reward, done flag, and value estimate are
 written into pre-allocated `(num_steps, num_envs)` tensors on the training device. Actions are
 sampled under `torch.no_grad()` — the log-probabilities stored here become the *old* policy
-`π_old(a|s)` that the surrogate objective ratios against.
+$\pi_{\theta_\mathrm{old}}(a \mid s)$ that the surrogate objective ratios against.
 
 Environments are wrapped in `RecordEpisodeStatistics`, so completed episodes surface their return
 and length in the `info` dict; these are logged as they arrive rather than averaged over the
@@ -174,19 +174,22 @@ Terminations and truncations are merged into a single `done` signal
 With `--gae True` (the default), advantages are accumulated backwards through the rollout
 ([algorithm.py:200-212](algorithm.py#L200-L212)):
 
-```text
-δ_t  = r_t + γ · V(s_{t+1}) · (1 - done_{t+1}) - V(s_t)
-A_t  = δ_t + γ · λ · (1 - done_{t+1}) · A_{t+1}
-R_t  = A_t + V(s_t)
-```
+$$
+\begin{aligned}
+\delta_t &= r_t + \gamma\, V(s_{t+1})\,(1 - d_{t+1}) - V(s_t) \\\
+\hat{A}_t &= \delta_t + \gamma \lambda\,(1 - d_{t+1})\,\hat{A}_{t+1} \\\
+R_t &= \hat{A}_t + V(s_t)
+\end{aligned}
+$$
 
-The `(1 - done)` factor cuts the recursion at episode boundaries. At the final step of the rollout
-the loop bootstraps with a fresh forward pass `V(s_T)` on the incoming observation, so a truncated
+where $d_t$ is the done flag and $R_t$ is the bootstrapped return the critic regresses onto.
+The $(1 - d)$ factor cuts the recursion at episode boundaries. At the final step of the rollout
+the loop bootstraps with a fresh forward pass $V(s_T)$ on the incoming observation, so a truncated
 rollout does not bias the estimate.
 
 Setting `--gae False` selects the classic Monte-Carlo alternative
 ([algorithm.py:214-224](algorithm.py#L214-L224)): discounted returns are accumulated backwards and
-advantages become the raw residual `A_t = R_t - V(s_t)`. This is the λ = 1 end of the
+advantages become the raw residual $\hat{A}_t = R_t - V(s_t)$. This is the $\lambda = 1$ end of the
 bias-variance trade-off, and exists specifically so the two can be compared under identical settings.
 
 ### 3. Optimization
@@ -197,10 +200,13 @@ passes the batch indices are shuffled and consumed in `minibatch_size` chunks. F
 **Policy loss** — the clipped surrogate objective, with the ratio computed in log-space for
 numerical stability:
 
-```text
-ratio    = exp(log π(a|s) - log π_old(a|s))
-L_policy = -min( ratio · A , clip(ratio, 1-ε, 1+ε) · A )
-```
+$$
+\rho_t(\theta) = \exp\big(\log \pi_\theta(a_t \mid s_t) - \log \pi_{\theta_\mathrm{old}}(a_t \mid s_t)\big)
+$$
+
+$$
+L^{\mathrm{policy}} = -\min\Big(\rho_t(\theta)\,\hat{A}_t,\;\; \mathrm{clip}\big(\rho_t(\theta),\, 1-\epsilon,\, 1+\epsilon\big)\,\hat{A}_t\Big)
+$$
 
 Taking `torch.max` of the two *negated* terms ([algorithm.py:258-260](algorithm.py#L258-L260)) is
 the minimization-form equivalent of the paper's `min` over the un-negated objective.
@@ -211,26 +217,26 @@ matching the reference implementations.
 **Value loss** — mean-squared error against the GAE returns, optionally clipped to a trust region
 around the old value estimate ([algorithm.py:264-275](algorithm.py#L264-L275)):
 
-```text
-L_value = 0.5 · max( (V(s) - R)² , (clip(V(s) - V_old(s), -ε, +ε) + V_old(s) - R)² )
-```
+$$
+L^{\mathrm{value}} = \tfrac{1}{2}\max\Big(\big(V_\theta(s) - R\big)^2,\;\; \big(V_{\mathrm{old}}(s) + \mathrm{clip}\big(V_\theta(s) - V_{\mathrm{old}}(s),\, -\epsilon,\, +\epsilon\big) - R\big)^2\Big)
+$$
 
-Note that the value-clipping range reuses `--clip-coef`, the same ε as the policy clip.
+Note that the value-clipping range reuses `--clip-coef`, the same $\epsilon$ as the policy clip.
 
 **Entropy bonus** — the mean policy entropy is subtracted from the loss to discourage premature
 determinism.
 
 **Total loss** ([algorithm.py:278](algorithm.py#L278)):
 
-```text
-L = L_policy - ent_coef · H(π) + vf_coef · L_value
-```
+$$
+L = L^{\mathrm{policy}} - c_{\mathrm{ent}}\, H[\pi_\theta] + c_{\mathrm{vf}}\, L^{\mathrm{value}}
+$$
 
 Gradients are clipped to `--max-grad-norm` (global L2 norm) before each Adam step. Adam uses
 `eps=1e-5` rather than the PyTorch default `1e-8`, a detail that measurably affects PPO stability.
 
 **Learning-rate annealing** — with `--annealing-lr True` (default), the learning rate decays
-linearly from `--learning-rate` to 0 across the run: `lr_t = (1 - (t-1)/num_updates) · lr_0`.
+linearly from `--learning-rate` to 0 across the run: $\eta_t = \big(1 - \frac{t-1}{N_\mathrm{updates}}\big)\,\eta_0$.
 
 **KL early stopping** — if `--target-kl` is set, the update loop breaks out after any epoch whose
 approximate KL exceeds the threshold, capping how far the policy moves per iteration. Disabled by
@@ -288,8 +294,8 @@ directory is self-documenting.
 | Flag | Default | Description |
 | --- | --- | --- |
 | `--gae` | `True` | Use GAE; `False` falls back to discounted Monte-Carlo returns. |
-| `--gamma` | `0.99` | Discount factor γ. |
-| `--gae-lambda` | `0.95` | GAE trace decay λ. |
+| `--gamma` | `0.99` | Discount factor $\gamma$. |
+| `--gae-lambda` | `0.95` | GAE trace decay $\lambda$. |
 
 ### Optimization
 
@@ -300,7 +306,7 @@ directory is self-documenting.
 | `--num-minibatches` | `4` | Minibatches per epoch; sets `minibatch_size`. |
 | `--update-epochs` | `4` | Passes (K) over each collected batch. |
 | `--norm-adv` | `True` | Standardize advantages within each minibatch. |
-| `--clip-coef` | `0.2` | Surrogate clipping coefficient ε (also the value-clipping range). |
+| `--clip-coef` | `0.2` | Surrogate clipping coefficient $\epsilon$ (also the value-clipping range). |
 | `--clip-vloss` | `True` | Use the clipped value-loss variant from the paper. |
 | `--ent-coef` | `0.01` | Entropy bonus coefficient. |
 | `--vf-coef` | `0.5` | Value-loss coefficient. |
@@ -362,9 +368,9 @@ python algorithm.py --track --capture-video
 | `losses/policy_loss` | The clipped surrogate. Hovers near zero and is *not* a progress signal on its own. |
 | `losses/value_loss` | Critic regression error. Should trend down as returns become predictable. |
 | `losses/entropy` | Policy entropy. A healthy run decays gradually; a collapse to ~0 early means premature convergence — raise `--ent-coef`. |
-| `losses/approx_kl` | `E[(r - 1) - log r]`, a low-variance KL estimator. Sustained values above ~0.02 mean each update is moving the policy too far. |
+| `losses/approx_kl` | $\mathbb{E}\big[(\rho - 1) - \log \rho\big]$, a low-variance KL estimator. Sustained values above ~0.02 mean each update is moving the policy too far. |
 | `losses/clipfrac` | Fraction of samples hitting the clip boundary. Large values (>0.3) mean the ratio is routinely saturating the trust region. |
-| `losses/explained_variance` | `1 - Var(R - V) / Var(R)`. Near 1 means the critic explains the returns; near or below 0 means it is no better than predicting the mean. |
+| `losses/explained_variance` | $1 - \operatorname{Var}(R - V) / \operatorname{Var}(R)$. Near 1 means the critic explains the returns; near or below 0 means it is no better than predicting the mean. |
 
 **Caveat on the loss scalars:** `policy_loss`, `value_loss`, `entropy`, `approx_kl`, and `clipfrac`
 are recorded once per iteration from whichever variable is left in scope after the update loop —
