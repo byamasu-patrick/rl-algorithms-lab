@@ -8,6 +8,7 @@ the algorithm from you.
 | Project | What it is | Status |
 | --- | --- | --- |
 | [ppo/](ppo/) | A from-scratch re-implementation of **PPO** for studying the algorithm one detail at a time. Single training loop, every hyperparameter and design choice exposed as a flag. | Working on classic control |
+| [ppo-atari/](ppo-atari/) | The same PPO algorithm scaled to the **Arcade Learning Environment**: a convolutional policy over stacked frames, plus the standard Atari preprocessing pipeline. | Training runs in progress |
 | [revisiting-grpo/](revisiting-grpo/) | An experiment harness for asking **whether the critic is necessary**, swapping the learned value baseline for group-statistic alternatives across a large sweep. | Reproduction of published results |
 
 ---
@@ -21,6 +22,11 @@ the algorithm from you.
 │   ├── src/agent.py        # actor/critic networks
 │   └── README.md           # algorithm walkthrough, CLI reference, metric guide
 │
+├── ppo-atari/              # PPO on the Arcade Learning Environment (pip)
+│   ├── algorithm.py        # training loop + the Atari preprocessing stack
+│   ├── src/agent.py        # Nature-DQN CNN, shared trunk with two heads
+│   └── README.md           # preprocessing, CNN rationale, evaluation protocol
+│
 ├── revisiting-grpo/        # critic-free baseline study (uv + Docker)
 │   ├── algorithm.py        # entry point
 │   ├── environment.py      # environment construction and wrappers
@@ -30,12 +36,14 @@ the algorithm from you.
 │   ├── Dockerfile
 │   └── README.md           # reproduction instructions and citation
 │
-└── .gitignore              # shared: runs/, videos/, wandb/, __pycache__/
+├── LICENSE                 # MIT
+├── NOTICE                  # provenance and third-party copyright notices
+└── .gitignore              # shared: runs/, videos/, wandb/, .venv/, __pycache__/
 ```
 
 ---
 
-## The two projects
+## The three projects
 
 ### `ppo/`: Proximal Policy Optimization, from scratch
 
@@ -60,6 +68,36 @@ tensorboard --logdir runs
 Full documentation is in **[ppo/README.md](ppo/README.md)**: an algorithm walkthrough with the
 equations mapped to line numbers, all 22 CLI flags, how to read each logged metric, and the known
 deviations from the reference implementation.
+
+### `ppo-atari/`: the same algorithm, a much harder perception problem
+
+The optimization code here is byte-identical to `ppo/`. Everything that changes is upstream of the
+loss: the agent sees `(4, 84, 84)` stacked grayscale frames instead of a four-number state vector,
+so the network becomes the Nature-DQN convolutional encoder ([Mnih et al.,
+2015](https://www.nature.com/articles/nature14236)) with ReLU activations and a trunk **shared**
+between actor and critic, where `ppo/` keeps two separate Tanh MLPs.
+
+Raw ALE output is 210x160 RGB at 60 Hz, so eleven composed wrappers reduce it: no-op starts, frame
+skipping with max-pooling, life-loss termination, reward clipping, grayscale, resize, and a
+4-frame stack. Wrapper *order* carries real weight, and the README works through which orderings
+are load-bearing and why.
+
+Evaluation follows [Machado et al., 2017](https://arxiv.org/abs/1709.06009). The `ALE/*-v5`
+environment ids default to sticky actions (`repeat_action_probability=0.25`) and a 30-minute
+episode cap, which is the main reason to prefer them over the older `NoFrameskip-v4` ids.
+
+```bash
+cd ppo-atari
+pip install -r requirements.txt
+python algorithm.py                      # ALE/Breakout-v5, 10M steps
+```
+
+At the defaults this is 10M agent steps across 8 environments. It wants a GPU; on CPU a full run
+takes days.
+
+Full documentation is in **[ppo-atari/README.md](ppo-atari/README.md)**: the preprocessing pipeline,
+the architecture rationale, how the evaluation protocol maps onto the paper's recommendations, and
+the open issues. **Read the known issues before trusting any numbers from this directory.**
 
 ### `revisiting-grpo/`: is the critic doing the work?
 
@@ -94,22 +132,25 @@ Reproduction instructions, the Docker path, and the paper citation are in
 
 ## Why the environments are separate
 
-The two projects **cannot share a virtual environment**, and the split is deliberate rather than
-untidy:
+| | `ppo/` | `ppo-atari/` | `revisiting-grpo/` |
+| --- | --- | --- | --- |
+| Installed via | Poetry | pip, `requirements.txt` | uv |
+| Python | `>=3.10, <3.14` | 3.12 as created | `>=3.10, <3.11` |
+| PyTorch | 2.13.0 | 2.13.0 | 2.4.1 |
+| Gymnasium | 1.3.0 | 1.3.0 | 0.29.1 (plus `gym` 0.23.1) |
+| Also needs | | `ale-py` 0.12.1, `opencv-python` | |
 
-| | `ppo/` | `revisiting-grpo/` |
-| --- | --- | --- |
-| Package manager | Poetry | uv |
-| Python | `>=3.10, <3.14` | `>=3.10, <3.11` |
-| PyTorch | 2.13.0 | 2.4.1 |
-| Gymnasium | 1.3.0 | 0.29.1 (plus `gym` 0.23.1) |
+`ppo/` and `ppo-atari/` pin the same PyTorch and Gymnasium, so they *could* share one environment;
+`ppo-atari/` only adds the ALE and OpenCV layers on top. They are kept apart so each stays
+installable on its own, not because they conflict.
 
-The Gymnasium versions straddle the 1.0 release, which rewrote the vector-env autoreset semantics
-(the terminal observation moved out of `info["final_observation"]`, and the reset is now deferred by
-one step) and reorganised the wrappers and the `RecordEpisodeStatistics` info structure. Rollout and
-bootstrapping code written against one version does not run correctly against the other. `ppo/`
-tracks current Gymnasium; `revisiting-grpo/` stays pinned to the versions the published results were
-produced on, because moving it would invalidate the comparison.
+`revisiting-grpo/` genuinely cannot join them. Its Gymnasium pin sits on the far side of the 1.0
+release, which rewrote the vector-env autoreset semantics (the terminal observation moved out of
+`info["final_observation"]`, and the reset is now deferred by one step) and reorganised the wrappers
+and the `RecordEpisodeStatistics` info structure. Rollout and bootstrapping code written against one
+version does not run correctly against the other. The two PPO directories track current Gymnasium;
+`revisiting-grpo/` stays pinned to the versions the published results were produced on, because
+moving it would invalidate the comparison.
 
 Create one environment per project, from inside that project's directory.
 
@@ -117,7 +158,7 @@ Create one environment per project, from inside that project's directory.
 
 ## Experiment tracking
 
-Both projects log to TensorBoard by default and can mirror to Weights & Biases with `--track`
+All three projects log to TensorBoard by default and can mirror to Weights & Biases with `--track`
 (export `WANDB_API_KEY`, or run `wandb login`, first). Run directories are named
 `{env}__{exp_name}__{seed}__{timestamp}` so runs never collide.
 
@@ -133,12 +174,15 @@ which itself derives from [CleanRL](https://github.com/vwxyzjn/cleanrl). If you 
 please cite the paper. The BibTeX entry is in
 [revisiting-grpo/README.md](revisiting-grpo/README.md#citing).
 
-`ppo/` is an independent from-scratch implementation, written for study, and follows CleanRL's
-single-file structure by convention.
+`ppo/` and `ppo-atari/` are independent from-scratch implementations, written for study, and follow
+CleanRL's single-file structure by convention. `ppo-atari/` reuses the Atari wrappers from
+[Stable-Baselines3](https://github.com/DLR-RM/stable-baselines3) as an installed dependency rather
+than vendored source, and its network follows the architecture published in Mnih et al. (2015).
 
 ## License
 
 MIT, see [LICENSE](LICENSE).
 
-`ppo/` is original work. `revisiting-grpo/` is derived from third-party MIT-licensed projects,
-whose copyright notices are retained in [NOTICE](NOTICE). Both directories carry the same terms.
+`ppo/` and `ppo-atari/` are original work. `revisiting-grpo/` is derived from third-party
+MIT-licensed projects, whose copyright notices are retained in [NOTICE](NOTICE). All three
+directories carry the same terms.
