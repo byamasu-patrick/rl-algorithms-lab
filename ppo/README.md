@@ -56,12 +56,12 @@ Requires **Python >= 3.10, < 3.14**.
 
 ```bash
 cd ppo
-poetry install --no-root
+poetry install
 ```
 
-`--no-root` installs only the dependencies. The `[tool.poetry]` section declares a `ppo` package
-under `src/`, but the code is currently laid out as a flat script plus `src/agent.py`, so there is
-no distributable package to build. The training loop is invoked directly as a script.
+`pyproject.toml` sets `package-mode = false`, because `algorithm.py` is run directly rather than
+installed as a package. `poetry install` therefore resolves dependencies only, and no `--no-root`
+flag is needed. If `poetry.lock` predates the current dependency list, run `poetry lock` first.
 
 ### With pip
 

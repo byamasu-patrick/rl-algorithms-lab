@@ -33,13 +33,18 @@ dqn/
 ├── utils.py           # ReplayBuffer and its base classes
 ├── eval.py            # greedy evaluation of a saved checkpoint
 ├── hugging_face.py    # optional model-card generation and Hub upload
-├── pyproject.toml     # metadata (incomplete, see Installation)
-└── requirements.txt   # pinned freeze (incomplete, see Installation)
+├── pyproject.toml     # Poetry dependency declaration, plus the `hub` extra
+└── requirements.txt   # pip-installable freeze of the same versions
 ```
 
 ---
 
 ## Installation
+
+```bash
+cd dqn
+poetry install
+```
 
 ```bash
 cd dqn
@@ -51,11 +56,16 @@ pip install -r requirements.txt
 
 Core pins are `torch` 2.13.0, `gymnasium` 1.3.0, and `stable-baselines3` 2.9.0.
 
-`requirements.txt` also carries `huggingface_hub` and `tenacity`, which only the
-`--upload-model` path needs.
+The `--upload-model` path needs two more packages, declared as a Poetry extra so a plain training
+install stays lean:
 
-One caveat: `pyproject.toml` is still a copy of the one in `ppo/`, down to the project name, so
-`requirements.txt` is the only usable install path.
+```bash
+poetry install --extras hub        # or: pip install huggingface_hub tenacity
+```
+
+Note that `requirements.txt` pins `huggingface_hub` but not `tenacity`, which
+[hugging_face.py](hugging_face.py) imports at module level, so the pip path needs both named
+explicitly.
 
 ---
 

@@ -62,8 +62,8 @@ ppo-atari/
 ├── algorithm.py       # argument parsing, env construction, and the PPO training loop
 ├── src/
 │   └── agent.py       # Agent: shared Nature-CNN trunk with actor and critic heads
-├── pyproject.toml     # project metadata (see the Installation caveat below)
-├── requirements.txt   # pinned, working environment freeze
+├── pyproject.toml     # Poetry dependency declaration
+├── requirements.txt   # pip-installable freeze of the same versions
 ├── runs/              # TensorBoard event files, one directory per run (gitignored)
 └── videos/            # recorded episode MP4s, one directory per run (gitignored)
 ```
@@ -72,7 +72,12 @@ ppo-atari/
 
 ## Installation
 
-Use **`requirements.txt`**. It is the only complete dependency list:
+Either path works and both resolve the same pinned versions.
+
+```bash
+cd ppo-atari
+poetry install
+```
 
 ```bash
 cd ppo-atari
@@ -82,10 +87,8 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-> **Caveat:** `pyproject.toml` is currently a copy of the one in `ppo/`. It is still named `ppo`,
-> and it is missing `ale-py` and `opencv-python`, both of which this code needs (`import ale_py`
-> registers the `ALE/*` environment ids, and `ResizeObservation` needs OpenCV). Installing from
-> `pyproject.toml` produces an environment that cannot import `algorithm.py`.
+`pyproject.toml` sets `package-mode = false`, since `algorithm.py` is run directly rather than
+installed as a package, so `poetry install` resolves dependencies only.
 
 ### Key dependencies
 

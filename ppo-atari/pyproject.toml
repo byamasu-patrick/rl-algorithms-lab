@@ -1,7 +1,7 @@
 [project]
-name = "ppo"
+name = "ppo-atari"
 version = "0.1.0"
-description = "A from-scratch re-implementation of Proximal Policy Optimization (PPO), a policy-gradient reinforcement learning algorithm, designed to reproduce and study the core PPO algorithm through a clean, modular, and experimentally reproducible implementation. The project covers policy and value networks, clipped surrogate objectives, generalized advantage estimation (GAE), trajectory collection, minibatch updates, and PPO training dynamics."
+description = "PPO scaled to the Arcade Learning Environment: a Nature-DQN convolutional policy over stacked grayscale frames, with the standard Atari preprocessing pipeline and the evaluation protocol recommended by Machado et al. (2017)."
 authors = [
     {name = "Byamasu Patrick Paul",email = "43136469+byamasu-patrick@users.noreply.github.com"}
 ]
@@ -11,18 +11,21 @@ requires-python = ">=3.10,<3.14"
 dependencies = [
     "gymnasium==1.3.0",
     "torch==2.13.0",
+    "numpy==2.5.2",
+    "ale-py==0.12.1",
     "stable-baselines3==2.9.0",
+    "opencv-python==5.0.0.93",
     "tensorboard==2.21.0",
     "wandb==0.28.2",
+    "moviepy==2.2.1",
     "pygame==2.6.1",
-    "moviepy==2.2.1"
 ]
 
 [tool.poetry]
-package-mode = true
-packages = [
-    {include = "ppo", from = "src"}
-]
+# This project is a script, not a distributable package: `algorithm.py` is run
+# directly and there is no importable top-level package to build. With
+# package-mode disabled, `poetry install` resolves dependencies only.
+package-mode = false
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

@@ -1,7 +1,7 @@
 [project]
-name = "ppo"
+name = "dqn"
 version = "0.1.0"
-description = "A from-scratch re-implementation of Proximal Policy Optimization (PPO), a policy-gradient reinforcement learning algorithm, designed to reproduce and study the core PPO algorithm through a clean, modular, and experimentally reproducible implementation. The project covers policy and value networks, clipped surrogate objectives, generalized advantage estimation (GAE), trajectory collection, minibatch updates, and PPO training dynamics."
+description = "A from-scratch implementation of Deep Q-Networks: experience replay, a delayed target network, and epsilon-greedy exploration, with optional greedy evaluation of a saved checkpoint and a Hugging Face Hub upload path."
 authors = [
     {name = "Byamasu Patrick Paul",email = "43136469+byamasu-patrick@users.noreply.github.com"}
 ]
@@ -11,18 +11,27 @@ requires-python = ">=3.10,<3.14"
 dependencies = [
     "gymnasium==1.3.0",
     "torch==2.13.0",
-    "stable-baselines3==2.9.0",
+    "numpy==2.5.2",
     "tensorboard==2.21.0",
     "wandb==0.28.2",
+    "moviepy==2.2.1",
     "pygame==2.6.1",
-    "moviepy==2.2.1"
+    "stable-baselines3==2.9.0",
+]
+
+[project.optional-dependencies]
+# Needed only by the --upload-model path in hugging_face.py.
+# `tenacity` is imported there at module level but is absent from requirements.txt.
+hub = [
+    "huggingface-hub==1.28.0",
+    "tenacity>=8.2.2",
 ]
 
 [tool.poetry]
-package-mode = true
-packages = [
-    {include = "ppo", from = "src"}
-]
+# This project is a script, not a distributable package: `algorithm.py` is run
+# directly and there is no importable top-level package to build. With
+# package-mode disabled, `poetry install` resolves dependencies only.
+package-mode = false
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

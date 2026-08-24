@@ -78,7 +78,7 @@ Currently supports **discrete action spaces** on classic control environments.
 
 ```bash
 cd ppo
-poetry install --no-root
+poetry install
 python algorithm.py                    # CartPole-v1, 25k steps
 tensorboard --logdir runs
 ```
@@ -202,7 +202,7 @@ Reproduction instructions, the Docker path, and the paper citation are in
 
 | | `ppo/` | `ppo-atari/` | `ppo-continuous-actions/` | `dqn/` | `revisiting-grpo/` |
 | --- | --- | --- | --- | --- | --- |
-| Installed via | Poetry | pip | pip | pip | uv |
+| Installed via | Poetry | Poetry or pip | Poetry | Poetry or pip | uv |
 | PyTorch | 2.13.0 | 2.13.0 | 2.13.0 | 2.13.0 | 2.4.1 |
 | Gymnasium | 1.3.0 | 1.3.0 | 1.3.0 | 1.3.0 | 0.29.1 (plus `gym` 0.23.1) |
 | Also needs | | `ale-py`, `opencv-python` | `pybullet-envs-gymnasium` | `huggingface_hub` | |
@@ -210,6 +210,11 @@ Reproduction instructions, the Docker path, and the paper citation are in
 The four current-Gymnasium directories pin the same PyTorch and Gymnasium, so they *could* share one
 environment; each only adds its own simulator or tooling layer on top. They are kept apart so each
 stays installable on its own, not because they conflict.
+
+Each of those four declares its dependencies in its own `pyproject.toml` with
+`package-mode = false`, so `poetry install` resolves dependencies without trying to build a package.
+`ppo-continuous-actions/` is Poetry-only: its `requirements.txt` was frozen without PyTorch and
+cannot produce a runnable environment on its own.
 
 `revisiting-grpo/` genuinely cannot join them. Its Gymnasium pin sits on the far side of the 1.0
 release, which rewrote the vector-env autoreset semantics (the terminal observation moved out of

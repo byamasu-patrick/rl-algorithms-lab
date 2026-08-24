@@ -37,27 +37,26 @@ ppo-continuous-actions/
 ├── algorithm.py       # argument parsing, env construction, training loop
 ├── src/
 │   └── agent.py       # Agent: Gaussian policy and value MLPs
-├── pyproject.toml     # metadata (incomplete, see Installation)
-└── requirements.txt   # pinned freeze (incomplete, see Installation)
+├── pyproject.toml     # Poetry dependency declaration (complete)
+└── requirements.txt   # pip freeze, missing torch (see Installation)
 ```
 
 ---
 
 ## Installation
 
+Use **Poetry**. It is the only complete dependency list for this project:
+
 ```bash
 cd ppo-continuous-actions
-python -m venv .venv
-.venv\Scripts\activate        # Windows
-# source .venv/bin/activate   # macOS / Linux
-pip install -r requirements.txt
-pip install pybullet-envs-gymnasium
+poetry install
 ```
 
-> **The second install line is not optional.** [algorithm.py:10](algorithm.py#L10) imports
-> `pybullet_envs_gymnasium`, but neither `requirements.txt` nor `pyproject.toml` lists it or
-> `pybullet`. Installing from either file alone produces an environment that cannot import the
-> script. `pyproject.toml` is also still a copy of the one in `ppo/`, down to the project name.
+> **`requirements.txt` is incomplete here.** It was frozen from an environment that did not have
+> PyTorch, so it lists only `gymnasium`, `numpy`, `pybullet`, and `pybullet_envs_gymnasium` (plus
+> their transitive deps). `pip install -r requirements.txt` produces an environment where
+> `import torch` fails. `pyproject.toml` adds `torch`, `tensorboard`, `wandb`, `moviepy`, and
+> `pygame` at the versions the sibling PPO projects pin, and is marked accordingly.
 
 Core pins are `torch` 2.13.0 and `gymnasium` 1.3.0, matching `ppo/`.
 
