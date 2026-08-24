@@ -5,10 +5,16 @@ Each subdirectory is a self-contained project with its own dependencies, entry p
 documentation. There is no shared framework layer to trace through, and no abstraction that hides
 the algorithm from you.
 
+Three of the directories are PPO, taken from classic control up to pixels and continuous control, so
+the same algorithm can be compared across problem types. One is DQN, the off-policy value-based
+counterpart. One is a research harness asking whether the critic earns its keep.
+
 | Project | What it is | Status |
 | --- | --- | --- |
 | [ppo/](ppo/) | A from-scratch re-implementation of **PPO** for studying the algorithm one detail at a time. Single training loop, every hyperparameter and design choice exposed as a flag. | Working on classic control |
 | [ppo-atari/](ppo-atari/) | The same PPO algorithm scaled to the **Arcade Learning Environment**: a convolutional policy over stacked frames, plus the standard Atari preprocessing pipeline. | Training runs in progress |
+| [ppo-continuous-actions/](ppo-continuous-actions/) | PPO for **continuous control** on the PyBullet robotics tasks: a diagonal Gaussian policy plus observation and reward normalization. | Default task `HalfCheetahBulletEnv-v0` |
+| [dqn/](dqn/) | A from-scratch **Deep Q-Network**: replay buffer, target network, and epsilon-greedy exploration. The off-policy, value-based contrast to the PPO directories. | Working on classic control |
 | [revisiting-grpo/](revisiting-grpo/) | An experiment harness for asking **whether the critic is necessary**, swapping the learned value baseline for group-statistic alternatives across a large sweep. | Reproduction of published results |
 
 ---
@@ -27,6 +33,18 @@ the algorithm from you.
 │   ├── src/agent.py        # Nature-DQN CNN, shared trunk with two heads
 │   └── README.md           # preprocessing, CNN rationale, evaluation protocol
 │
+├── ppo-continuous-actions/ # PPO for continuous control on PyBullet (pip)
+│   ├── algorithm.py        # training loop + normalization wrappers
+│   ├── src/agent.py        # Gaussian policy with a learned log-std
+│   └── README.md           # Gaussian policy, normalization, hyperparameters
+│
+├── dqn/                    # from-scratch DQN (pip)
+│   ├── algorithm.py        # arguments, Q network, training loop
+│   ├── utils.py            # replay buffer
+│   ├── eval.py             # greedy evaluation of a checkpoint
+│   ├── hugging_face.py     # optional Hub upload
+│   └── README.md           # TD target, target network, autoreset notes
+│
 ├── revisiting-grpo/        # critic-free baseline study (uv + Docker)
 │   ├── algorithm.py        # entry point
 │   ├── environment.py      # environment construction and wrappers
@@ -43,7 +61,7 @@ the algorithm from you.
 
 ---
 
-## The three projects
+## The projects
 
 ### `ppo/`: Proximal Policy Optimization, from scratch
 
@@ -99,6 +117,56 @@ Full documentation is in **[ppo-atari/README.md](ppo-atari/README.md)**: the pre
 the architecture rationale, how the evaluation protocol maps onto the paper's recommendations, and
 the open issues. **Read the known issues before trusting any numbers from this directory.**
 
+### `ppo-continuous-actions/`: from discrete choices to real-valued vectors
+
+Same optimizer again. What changes is the policy distribution: instead of logits into a
+`Categorical`, the actor emits a mean vector, pairs it with a **state-independent learned log-std**,
+and samples from a diagonal Gaussian. Log-probabilities and entropy are summed across action
+dimensions, since a diagonal Gaussian treats them as independent.
+
+The environment side gains running observation and reward normalization with outlier clipping, which
+continuous control needs because joint angles and velocities arrive on very different scales. The
+entropy bonus is switched off, because the learned log-std shrinking over training is already the
+exploration schedule.
+
+Tasks come from PyBullet rather than MuJoCo, so no licence is required. The trade-off is that scores
+are not comparable to MuJoCo `HalfCheetah-v4`.
+
+```bash
+cd ppo-continuous-actions
+pip install -r requirements.txt
+pip install pybullet-envs-gymnasium          # not listed in either dependency file
+python algorithm.py                          # HalfCheetahBulletEnv-v0, 2M steps
+```
+
+Full documentation is in
+**[ppo-continuous-actions/README.md](ppo-continuous-actions/README.md)**, including the two open
+issues that stop a fresh clone from running.
+
+### `dqn/`: the off-policy, value-based contrast
+
+The three directories above are all the same on-policy policy-gradient method. This one is the other
+branch of the family. Instead of learning a policy from fresh rollouts that are thrown away after
+one update, DQN learns an action-value function from a replay buffer, reuses every transition many
+times, and acts by taking the argmax over Q with epsilon-greedy noise on top.
+
+That swaps out which machinery does the stabilizing. PPO uses a clipped surrogate to stop the policy
+moving too far per update; DQN has no policy to constrain, and instead holds a delayed copy of the
+network as the regression target, so the network is not chasing its own output.
+
+Also included are a greedy evaluation pass over a saved checkpoint and an optional Hugging Face Hub
+upload with a generated model card.
+
+```bash
+cd dqn
+pip install -r requirements.txt
+python algorithm.py                          # CartPole-v1, 500k steps
+```
+
+Full documentation is in **[dqn/README.md](dqn/README.md)**: the TD target, why the target network is
+delayed, the full flag reference, and why the vector environments opt out of Gymnasium's default
+autoreset mode.
+
 ### `revisiting-grpo/`: is the critic doing the work?
 
 PPO learns a value function to center its advantages. GRPO-style methods drop it, using statistics
@@ -132,17 +200,16 @@ Reproduction instructions, the Docker path, and the paper citation are in
 
 ## Why the environments are separate
 
-| | `ppo/` | `ppo-atari/` | `revisiting-grpo/` |
-| --- | --- | --- | --- |
-| Installed via | Poetry | pip, `requirements.txt` | uv |
-| Python | `>=3.10, <3.14` | 3.12 as created | `>=3.10, <3.11` |
-| PyTorch | 2.13.0 | 2.13.0 | 2.4.1 |
-| Gymnasium | 1.3.0 | 1.3.0 | 0.29.1 (plus `gym` 0.23.1) |
-| Also needs | | `ale-py` 0.12.1, `opencv-python` | |
+| | `ppo/` | `ppo-atari/` | `ppo-continuous-actions/` | `dqn/` | `revisiting-grpo/` |
+| --- | --- | --- | --- | --- | --- |
+| Installed via | Poetry | pip | pip | pip | uv |
+| PyTorch | 2.13.0 | 2.13.0 | 2.13.0 | 2.13.0 | 2.4.1 |
+| Gymnasium | 1.3.0 | 1.3.0 | 1.3.0 | 1.3.0 | 0.29.1 (plus `gym` 0.23.1) |
+| Also needs | | `ale-py`, `opencv-python` | `pybullet-envs-gymnasium` | `huggingface_hub` | |
 
-`ppo/` and `ppo-atari/` pin the same PyTorch and Gymnasium, so they *could* share one environment;
-`ppo-atari/` only adds the ALE and OpenCV layers on top. They are kept apart so each stays
-installable on its own, not because they conflict.
+The four current-Gymnasium directories pin the same PyTorch and Gymnasium, so they *could* share one
+environment; each only adds its own simulator or tooling layer on top. They are kept apart so each
+stays installable on its own, not because they conflict.
 
 `revisiting-grpo/` genuinely cannot join them. Its Gymnasium pin sits on the far side of the 1.0
 release, which rewrote the vector-env autoreset semantics (the terminal observation moved out of
@@ -158,7 +225,7 @@ Create one environment per project, from inside that project's directory.
 
 ## Experiment tracking
 
-All three projects log to TensorBoard by default and can mirror to Weights & Biases with `--track`
+All five projects log to TensorBoard by default and can mirror to Weights & Biases with `--track`
 (export `WANDB_API_KEY`, or run `wandb login`, first). Run directories are named
 `{env}__{exp_name}__{seed}__{timestamp}` so runs never collide.
 
@@ -174,15 +241,17 @@ which itself derives from [CleanRL](https://github.com/vwxyzjn/cleanrl). If you 
 please cite the paper. The BibTeX entry is in
 [revisiting-grpo/README.md](revisiting-grpo/README.md#citing).
 
-`ppo/` and `ppo-atari/` are independent from-scratch implementations, written for study, and follow
-CleanRL's single-file structure by convention. `ppo-atari/` reuses the Atari wrappers from
-[Stable-Baselines3](https://github.com/DLR-RM/stable-baselines3) as an installed dependency rather
-than vendored source, and its network follows the architecture published in Mnih et al. (2015).
+The three PPO directories and `dqn/` are independent from-scratch implementations, written for
+study, and follow CleanRL's single-file structure by convention. `ppo-atari/` reuses the Atari
+wrappers from [Stable-Baselines3](https://github.com/DLR-RM/stable-baselines3) as an installed
+dependency rather than vendored source, and its network follows the architecture published in Mnih
+et al. (2015). `dqn/` vendors a replay buffer derived from Stable-Baselines3 into
+[dqn/utils.py](dqn/utils.py), which is MIT-licensed; see [NOTICE](NOTICE).
 
 ## License
 
 MIT, see [LICENSE](LICENSE).
 
-`ppo/` and `ppo-atari/` are original work. `revisiting-grpo/` is derived from third-party
-MIT-licensed projects, whose copyright notices are retained in [NOTICE](NOTICE). All three
-directories carry the same terms.
+The three PPO directories and `dqn/` are original work, aside from the vendored replay buffer noted
+above. `revisiting-grpo/` is derived from third-party MIT-licensed projects. Copyright notices for
+both are retained in [NOTICE](NOTICE). All directories carry the same terms.
