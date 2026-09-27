@@ -12,7 +12,7 @@ from gymnasium import spaces
 
 try:
     # Check memory used by replay buffer when possible
-    import psutil
+    import psutil # type: ignore
 except ImportError:
     psutil = None
 

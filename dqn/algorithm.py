@@ -7,7 +7,7 @@ import torch
 import gymnasium as gym
 import torch.nn as nn
 import torch.optim as optim
-from distutils.util import strtobool
+from distutils.util import strtobool # type: ignore
 import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 from utils import ReplayBuffer
