@@ -28,6 +28,9 @@ dependencies = [
     "PyYAML==6.0.3",
     "tqdm==4.70.0",
     "setuptools==84.0.0",
+    # Launcher behind --hf-job; algorithm.py imports it unconditionally. Pinned to a release tag;
+    # switch to "hf-jobs-launch==0.1.0" once it is on PyPI.
+    "hf-jobs-launch @ git+https://github.com/byamasu-patrick/rl-algorithms-lab.git@hf-jobs-launch-v0.1.0#subdirectory=hf-training-jobs",
 ]
 
 [project.optional-dependencies]
@@ -42,10 +45,6 @@ hub = [
 # directly and there is no importable top-level package to build. With
 # package-mode disabled, `poetry install` resolves dependencies only.
 package-mode = false
-
-[tool.poetry.dependencies]
-# Launcher behind --hf-job; algorithm.py imports it unconditionally.
-hf-jobs-launch = {path = "../hf-training-jobs", develop = true}
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

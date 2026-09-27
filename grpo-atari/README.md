@@ -198,8 +198,9 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Run `pip install` from this directory: `requirements.txt` installs the
-[Hugging Face Jobs launcher](../hf-training-jobs) from `../hf-training-jobs`.
+`requirements.txt` installs the [Hugging Face Jobs launcher](../hf-training-jobs),
+`hf-jobs-launch`, from GitHub, pinned to the `hf-jobs-launch-v0.1.0` tag. To work on the launcher
+itself, run `pip install -e ../hf-training-jobs` afterwards.
 
 | Pin | Reason |
 | --- | --- |
