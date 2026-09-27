@@ -1,0 +1,40 @@
+[project]
+name = "dqn"
+version = "0.1.0"
+description = "A from-scratch implementation of Deep Q-Networks: experience replay, a delayed target network, and epsilon-greedy exploration, with optional greedy evaluation of a saved checkpoint and a Hugging Face Hub upload path."
+authors = [
+    {name = "Byamasu Patrick Paul",email = "43136469+byamasu-patrick@users.noreply.github.com"}
+]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.10,<3.14"
+dependencies = [
+    "gymnasium==1.3.0",
+    "torch==2.13.0",
+    "numpy==2.5.2",
+    "tensorboard==2.21.0",
+    "wandb==0.28.2",
+    "moviepy==2.2.1",
+    # pygame-ce is a drop-in fork (still `import pygame`) with wheels for newer
+    # Pythons; gymnasium needs it to render CartPole for --capture-video.
+    "pygame-ce==2.5.8",
+    "stable-baselines3==2.9.0",
+]
+
+[project.optional-dependencies]
+# Needed only by the --upload-model path in hugging_face.py.
+# `tenacity` is imported there at module level but is absent from requirements.txt.
+hub = [
+    "huggingface-hub==1.28.0",
+    "tenacity>=8.2.2",
+]
+
+[tool.poetry]
+# This project is a script, not a distributable package: `algorithm.py` is run
+# directly and there is no importable top-level package to build. With
+# package-mode disabled, `poetry install` resolves dependencies only.
+package-mode = false
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
