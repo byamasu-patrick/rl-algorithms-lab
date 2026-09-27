@@ -15,20 +15,21 @@ DESCRIPTION = "Proximal Policy Optimization: actor-critic with GAE and a clipped
 DISPLAY_NAME = "PPO"
 
 
-def add_policy_gradient_args(parser, num_steps=128, norm_adv=True):
-    """Flags shared by PPO and GRPO; the defaults that differ between them are parameters."""
+def add_policy_gradient_args(parser, num_steps=128, norm_adv=True, num_envs=8):
+    """Policy-optimization flags shared by PPO and GRPO; the defaults that differ are parameters.
+
+    Critic flags (GAE, value loss) are PPO-only: GRPO has no value function.
+    """
     parser.add_argument("--learning-rate", type=float, default=2.5e-4,
                         help="the learning rate of the optimizer")
-    parser.add_argument("--num-envs", type=int, default=8,
+    parser.add_argument("--num-envs", type=int, default=num_envs,
                         help="the number of parallel game environments")
     parser.add_argument("--num-steps", type=int, default=num_steps,
                         help="the number of steps to run in each environment per policy rollout")
     parser.add_argument("--anneal-lr", type=bool, default=True, action=argparse.BooleanOptionalAction,
-                        help="Toggle learning rate annealing for policy and value networks")
+                        help="Toggle learning rate annealing")
     parser.add_argument("--gamma", type=float, default=0.99,
                         help="the discount factor gamma")
-    parser.add_argument("--gae-lambda", type=float, default=0.95,
-                        help="the lambda for the general advantage estimation")
     parser.add_argument("--num-minibatches", type=int, default=4,
                         help="the number of mini-batches")
     parser.add_argument("--update-epochs", type=int, default=4,
@@ -37,12 +38,8 @@ def add_policy_gradient_args(parser, num_steps=128, norm_adv=True):
                         help="Toggles advantages normalization within the minibatch")
     parser.add_argument("--clip-coef", type=float, default=0.1,
                         help="the surrogate clipping coefficient")
-    parser.add_argument("--clip-vloss", type=bool, default=True, action=argparse.BooleanOptionalAction,
-                        help="Toggles whether or not to use a clipped loss for the value function, as per the paper.")
     parser.add_argument("--ent-coef", type=float, default=0.01,
                         help="coefficient of the entropy")
-    parser.add_argument("--vf-coef", type=float, default=0.5,
-                        help="coefficient of the value function")
     parser.add_argument("--max-grad-norm", type=float, default=0.5,
                         help="the maximum norm for the gradient clipping")
     parser.add_argument("--target-kl", type=float, default=None,
@@ -51,8 +48,15 @@ def add_policy_gradient_args(parser, num_steps=128, norm_adv=True):
 
 def add_args(parser):
     add_policy_gradient_args(parser)
+    # Critic: GAE and the value loss
     parser.add_argument("--gae", type=bool, default=True, action=argparse.BooleanOptionalAction,
                         help="Use GAE for advantage estimation; otherwise bootstrapped discounted returns")
+    parser.add_argument("--gae-lambda", type=float, default=0.95,
+                        help="the lambda for the general advantage estimation")
+    parser.add_argument("--vf-coef", type=float, default=0.5,
+                        help="coefficient of the value function")
+    parser.add_argument("--clip-vloss", type=bool, default=True, action=argparse.BooleanOptionalAction,
+                        help="Toggles whether or not to use a clipped loss for the value function, as per the paper.")
 
 
 def validate_args(args):
