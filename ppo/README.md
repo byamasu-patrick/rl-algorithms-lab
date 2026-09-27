@@ -174,13 +174,13 @@ Terminations and truncations are merged into a single `done` signal
 With `--gae True` (the default), advantages are accumulated backwards through the rollout
 ([algorithm.py:200-212](algorithm.py#L200-L212)):
 
-$$
+```math
 \begin{aligned}
 \delta_t &= r_t + \gamma\, V(s_{t+1})\,(1 - d_{t+1}) - V(s_t) \\\
 \hat{A}_t &= \delta_t + \gamma \lambda\,(1 - d_{t+1})\,\hat{A}_{t+1} \\\
 R_t &= \hat{A}_t + V(s_t)
 \end{aligned}
-$$
+```
 
 where $d_t$ is the done flag and $R_t$ is the bootstrapped return the critic regresses onto.
 The $(1 - d)$ factor cuts the recursion at episode boundaries. At the final step of the rollout
@@ -201,13 +201,13 @@ passes the batch indices are shuffled and consumed in `minibatch_size` chunks. F
 **Policy loss:** the clipped surrogate objective, with the ratio computed in log-space for
 numerical stability:
 
-$$
+```math
 \rho_t(\theta) = \exp\big(\log \pi_\theta(a_t \mid s_t) - \log \pi_{\theta_\mathrm{old}}(a_t \mid s_t)\big)
-$$
+```
 
-$$
+```math
 L^{\mathrm{policy}} = -\hat{\mathbb{E}}_t\Big[\min\big(\rho_t(\theta)\,\hat{A}_t,\;\; \mathrm{clip}(\rho_t(\theta),\, 1-\epsilon,\, 1+\epsilon)\,\hat{A}_t\big)\Big]
-$$
+```
 
 Taking `torch.max` of the two *negated* terms ([algorithm.py:258-260](algorithm.py#L258-L260)) is
 the minimization-form equivalent of the paper's `min` over the un-negated objective.
@@ -218,9 +218,9 @@ matching the reference implementations.
 **Value loss:** mean-squared error against the GAE returns, optionally clipped to a trust region
 around the old value estimate ([algorithm.py:264-275](algorithm.py#L264-L275)):
 
-$$
+```math
 L^{\mathrm{value}} = \tfrac{1}{2}\,\hat{\mathbb{E}}_t\Big[\max\big((V_\theta(s_t) - R_t)^2,\;\; (V_{\mathrm{old}}(s_t) + \mathrm{clip}(V_\theta(s_t) - V_{\mathrm{old}}(s_t),\, -\epsilon,\, +\epsilon) - R_t)^2\big)\Big]
-$$
+```
 
 Note that the value-clipping range reuses `--clip-coef`, the same $\epsilon$ as the policy clip.
 
@@ -229,9 +229,9 @@ determinism.
 
 **Total loss** ([algorithm.py:278](algorithm.py#L278)):
 
-$$
+```math
 L = L^{\mathrm{policy}} - c_{\mathrm{ent}}\, H[\pi_\theta] + c_{\mathrm{vf}}\, L^{\mathrm{value}}
-$$
+```
 
 Gradients are clipped to `--max-grad-norm` (global L2 norm) before each Adam step. Adam uses
 `eps=1e-5` rather than the PyTorch default `1e-8`, a detail that measurably affects PPO stability.

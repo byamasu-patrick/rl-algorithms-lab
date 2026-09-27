@@ -118,13 +118,13 @@ taken; otherwise the argmax of the Q values.
 
 Sampled batches are regressed onto a one-step bootstrapped target computed under `torch.no_grad()`:
 
-$$
+```math
 y = r + \gamma \, (1 - d) \max_{a'} Q_{\mathrm{target}}(s', a')
-$$
+```
 
-$$
+```math
 L = \big(y - Q_\theta(s, a)\big)^2
-$$
+```
 
 The `max` over next-state actions is what makes this off-policy: the target assumes greedy
 continuation regardless of what the behaviour policy actually did. `Q(s, a)` is read out with
@@ -139,9 +139,9 @@ what the paired `handle_timeout_termination=False` on the buffer expects.
 `Q_target` is a second copy of the network, initialized from the same weights and updated only every
 `--target-network-frequency` steps:
 
-$$
+```math
 \theta_{\mathrm{target}} \leftarrow \tau \, \theta + (1 - \tau) \, \theta_{\mathrm{target}}
-$$
+```
 
 With the default `--tau 1.0` this is a **hard copy**, which is the original DQN behaviour. Values
 below 1.0 give Polyak averaging instead. The point of the delay either way is that regressing onto a

@@ -26,9 +26,9 @@ Q-learning with a neural network made this stable:
 
 The loss at iteration `i` is
 
-$$
+```math
 L_i(\theta_i) = \mathbb{E}_{(s,a,r,s') \sim U(D)} \Big[ \big( r + \gamma \max_{a'} Q(s', a'; \theta_i^-) - Q(s, a; \theta_i) \big)^2 \Big]
-$$
+```
 
 ---
 

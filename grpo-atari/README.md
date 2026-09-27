@@ -170,28 +170,28 @@ question, and each output's advantage is its reward relative to the rest of the 
 is subtracted, and the result is divided by the group's standard deviation.
 [src/algorithms/grpo.py](src/algorithms/grpo.py) implements the objective of the paper's equation 3:
 
-$$
+```math
 \mathcal{J}_{GRPO}(\theta) = \mathbb{E}\Bigg[\frac{1}{G}\sum_{i=1}^{G}\frac{1}{|o_i|}\sum_{t=1}^{|o_i|}
 \Big(\min\big(\rho_{i,t}\hat{A}_{i,t},\ \mathrm{clip}(\rho_{i,t}, 1-\varepsilon, 1+\varepsilon)\,\hat{A}_{i,t}\big)
 - \beta\, \mathbb{D}_{KL}\big[\pi_\theta \,\|\, \pi_{ref}\big]\Big)\Bigg],
 \qquad \rho_{i,t} = \frac{\pi_\theta(o_{i,t} \mid q, o_{i,<t})}{\pi_{\theta_{old}}(o_{i,t} \mid q, o_{i,<t})}
-$$
+```
 
 with the KL divergence estimated per step by the paper's unbiased estimator
-$\frac{\pi_{ref}}{\pi_\theta} - \log\frac{\pi_{ref}}{\pi_\theta} - 1 \ge 0$.
+$`\frac{\pi_{ref}}{\pi_\theta} - \log\frac{\pi_{ref}}{\pi_\theta} - 1 \ge 0`$.
 
 ### From language models to Atari
 
 | DeepSeekMath | Here |
 | --- | --- |
-| question $q$ | a start state, fixed by a reset seed |
-| group of $G$ outputs | $G$ environments reset with the **same seed** (`--num-groups` groups of `--num-envs / --num-groups`) |
-| output $o_i$ | one whole game |
-| token $o_{i,t}$ | one action |
-| reward model score $r_i$ | the game's total reward (clipped to its sign per step, as for DQN and PPO) |
+| question $`q`$ | a start state, fixed by a reset seed |
+| group of $`G`$ outputs | $`G`$ environments reset with the **same seed** (`--num-groups` groups of `--num-envs / --num-groups`) |
+| output $`o_i`$ | one whole game |
+| token $`o_{i,t}`$ | one action |
+| reward model score $`r_i`$ | the game's total reward (clipped to its sign per step, as for DQN and PPO) |
 | policy model | [`Policy`](src/algorithms/grpo.py): PPO's Nature CNN and actor head, with no critic head |
-| reference model $\pi_{ref}$ | a frozen copy of the policy, refreshed every `--ref-update-every` iterations (Algorithm 1's outer loop) |
-| $\mu$ GRPO iterations | `--update-epochs` passes over each batch |
+| reference model $`\pi_{ref}`$ | a frozen copy of the policy, refreshed every `--ref-update-every` iterations (Algorithm 1's outer loop) |
+| $`\mu`$ GRPO iterations | `--update-epochs` passes over each batch |
 
 `NoFrameskip-v4` games have no sticky actions, and the no-op start is drawn from the reset seed. So a
 group starts from identical frames and diverges only through the policy's own sampling, which is what
@@ -203,12 +203,12 @@ that finishes early stops using steps while the rest of its group plays on.
 
 ### Advantages
 
-`--advantage-type` selects how $\hat{A}_{i,t}$ is computed. None of the options uses a value function.
+`--advantage-type` selects how $`\hat{A}_{i,t}`$ is computed. None of the options uses a value function.
 
-| `--advantage-type` | $\hat{A}_{i,t}$ | Source |
+| `--advantage-type` | $`\hat{A}_{i,t}`$ | Source |
 | --- | --- | --- |
-| **`outcome`** (default) | $\frac{r_i - \mathrm{mean}(\mathbf{r})}{\mathrm{std}(\mathbf{r})}$ for every step of game $i$, with $\mathbf{r}$ the totals of $i$'s group | DeepSeekMath §4.1.2, outcome supervision |
-| `process` | rewards normalized by the mean and std of all rewards in the group, then summed from step $t$ to the end | DeepSeekMath §4.1.3, process supervision |
+| **`outcome`** (default) | $`\frac{r_i - \mathrm{mean}(\mathbf{r})}{\mathrm{std}(\mathbf{r})}`$ for every step of game $`i`$, with $`\mathbf{r}`$ the totals of $`i`$'s group | DeepSeekMath §4.1.2, outcome supervision |
+| `process` | rewards normalized by the mean and std of all rewards in the group, then summed from step $`t`$ to the end | DeepSeekMath §4.1.3, process supervision |
 | `baseline` | discounted Monte Carlo return minus `--baseline-type`: `batch_mean`, `same_seed_mean`, `ema`, `stats`, `uniform`, or `constant`; divided by the batch std with `--scale-adv-batch` | revisiting-grpo's critic-free variants |
 
 The estimators live in [src/advantages.py](src/advantages.py) as pure functions. Each one is tested
@@ -223,13 +223,13 @@ less likely.
 
 [`grpo_loss`](src/algorithms/grpo.py) computes the negative objective over a minibatch of steps:
 
-- the clipped surrogate, with $\varepsilon$ = `--clip-coef`;
-- plus $\beta \cdot$ KL to the reference policy, with $\beta$ = `--kl-coef` (0 disables it and the
+- the clipped surrogate, with $`\varepsilon`$ = `--clip-coef`;
+- plus $`\beta \cdot`$ KL to the reference policy, with $`\beta`$ = `--kl-coef` (0 disables it and the
   reference copy);
 - minus `--ent-coef` × entropy.
 
-`--loss-aggregation sequence` (the default) weights each step by $1/|o_i|$, which reproduces
-$\frac{1}{G}\sum_i \frac{1}{|o_i|}\sum_t$: every game counts equally, whatever its length.
+`--loss-aggregation sequence` (the default) weights each step by $`1/|o_i|`$, which reproduces
+$`\frac{1}{G}\sum_i \frac{1}{|o_i|}\sum_t`$: every game counts equally, whatever its length.
 `--loss-aggregation token` averages over all steps instead, so long games weigh more.
 [tests/test_grpo_objective.py](tests/test_grpo_objective.py) checks the following:
 
@@ -253,10 +253,10 @@ whole batch forms one unseeded group.
 
 | | DeepSeekMath | Here | Why |
 | --- | --- | --- | --- |
-| Group size $G$ | 64 | 8 (`--num-envs 16`, `--num-groups 2`) | each member is a full Atari game |
-| $\beta$ (`--kl-coef`) | 0.04 | 0.04 | |
-| $\varepsilon$ (`--clip-coef`) | not stated | 0.1 | the Atari PPO value |
-| $\mu$ (`--update-epochs`) | 1 | 4 | matches the PPO baseline; set `--update-epochs 1` for the paper's setting |
+| Group size $`G`$ | 64 | 8 (`--num-envs 16`, `--num-groups 2`) | each member is a full Atari game |
+| $`\beta`$ (`--kl-coef`) | 0.04 | 0.04 | |
+| $`\varepsilon`$ (`--clip-coef`) | not stated | 0.1 | the Atari PPO value |
+| $`\mu`$ (`--update-epochs`) | 1 | 4 | matches the PPO baseline; set `--update-epochs 1` for the paper's setting |
 | Reference model | reset each outer iteration | refreshed every 10 iterations | training starts from a random policy, not an SFT model |
 | Entropy bonus | none | 0.01 | matches the PPO baseline; `--ent-coef 0` removes it |
 | Reward | learned reward model | the game score | |
