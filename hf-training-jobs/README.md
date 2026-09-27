@@ -61,11 +61,42 @@ if __name__ == "__main__":
 them. Without `--hf-job` (or with `--hf-job false`) it returns immediately and the script runs
 locally as usual.
 
+### Hydra and other command-line styles
+
+`launch()` doesn't depend on how your script reads its arguments. argparse, tyro and
+[Hydra](https://hydra.cc/) scripts all work the same way:
+
+- **Exact matches only.** Only the exact flags in [Flags](#flags) are read. Everything else stays in
+  its original order, including look-alike flags such as `--hf-entity`, Hydra overrides such as
+  `+algorithm=ia2c` and short options such as `-m`.
+- **Switches.** `--hf-job`, `--hf-follow` and `--hf-dry-run` only consume the next argument when it
+  is `true`, `false`, `yes`, `no`, `on` or `off`. `--hf-job +algorithm=ia2c` therefore submits the
+  Job and leaves the override for Hydra. For any other value, use the `=` form: `--hf-job=0`.
+- **`--`.** Arguments after `--` are passed through untouched.
+
+For a Hydra app, call `launch()` before the `@hydra.main` function:
+
+```python
+@hydra.main(config_path="configs", config_name="default", version_base="1.3")
+def main(cfg): ...
+
+if __name__ == "__main__":
+    launch()
+    main()
+```
+
+A Hydra multirun (`-m`) runs all its combinations one after another inside one Job. Hydra's
+`outputs/` and `multirun/` folders are copied back by default (see [`outputs`](#configure)).
+
+If the script imports its own folder as a package (e.g. `from ac.model import ...` in a script
+inside `ac/`), that works too. The folder keeps its name in the Job and sits at
+`/workspace/<folder>`, so put `/workspace` on `sys.path` the same way you would locally.
+
 Add the package to your project's dependencies. The Job installs them and runs the same script, so
 it imports `hf_jobs` there too. Either source works in `requirements.txt`:
 
 ```text
-hf-jobs-launch==0.1.0
+hf-jobs-launch==0.2.0
 # or
 hf-jobs-launch @ git+https://github.com/byamasu-patrick/rl-algorithms-lab.git@<tag-or-commit>#subdirectory=hf-training-jobs
 ```
@@ -74,7 +105,7 @@ and likewise in `pyproject.toml`:
 
 ```toml
 [project]
-dependencies = ["hf-jobs-launch==0.1.0"]
+dependencies = ["hf-jobs-launch==0.2.0"]
 ```
 
 Installing from GitHub inside the Job needs `git` in the image. The default `python:3.x` images
@@ -83,13 +114,15 @@ have it; the `-slim` variants do not.
 ## What `--hf-job` does
 
 1. Uploads the folder containing your script to a private bucket, `{namespace}/hf-training-jobs`,
-   under a new subfolder per run. Virtual environments, caches, `.git`, and common output folders
-   (`runs`, `videos`, `wandb`, `logs`, `outputs`) are skipped.
+   under a new subfolder per run. Virtual environments, caches, `.git`, common output folders
+   (`runs`, `videos`, `wandb`, `logs`, `outputs`, `multirun`) and every folder listed in `outputs`
+   are skipped.
 2. Submits a Job with that subfolder mounted at `/bucket`. The Job copies the code to local disk,
    installs dependencies, and runs `python <your script> <your arguments>` without the `--hf-*`
    flags.
-3. When the script exits, successfully or not, copies the output folders (default `runs/` and
-   `videos/`) back to `/bucket/outputs`, so logs and checkpoints outlive the Job.
+3. When the script exits, successfully or not, copies the output folders back to `/bucket/outputs`,
+   so logs and checkpoints outlive the Job. The defaults are `runs/` and `videos/` (CleanRL-style
+   scripts) and `outputs/` and `multirun/` (Hydra); folders that don't exist are skipped.
 4. Prints the Job URL and exits locally.
 
 Dependencies are installed with `pip install -r requirements.txt` if the project has one, otherwise
@@ -120,7 +153,8 @@ flavor = "l4x1"               # hardware (default: cpu-basic); see `hf jobs hard
 timeout = "24h"               # default: the Hugging Face default, 30 minutes
 image = "python:3.11"         # default: python:3.12; needs bash, cp and pip
 install = "pip install -r requirements.txt"   # default: chosen automatically, see above
-outputs = ["runs", "videos", "checkpoints"]   # folders copied back to the bucket
+outputs = ["runs", "checkpoints"]  # folders copied back and never uploaded
+                                   # (default: runs, videos, outputs, multirun)
 exclude = ["data"]            # extra folders not to upload
 secrets = ["OPENAI_API_KEY"]  # local environment variables passed as secrets
 bucket = "hf-training-jobs"   # bucket name, created in the namespace
@@ -149,6 +183,9 @@ of being ignored.
 | `--hf-follow` | Stream the Job logs in the terminal until it finishes. |
 | `--hf-dry-run` | Print the files, secret names, and Job script, then exit without uploading anything. |
 
+Value options take `--hf-flavor l4x1` or `--hf-flavor=l4x1`. The three switches accept an explicit
+value as described in [Hydra and other command-line styles](#hydra-and-other-command-line-styles).
+
 ## Monitor
 
 ```bash
@@ -170,6 +207,26 @@ from the same source, like any other dependency.
 pip install -e ".[test]"
 pytest
 ```
+
+## Changelog
+
+### 0.2.0
+
+- **Arguments:** the command line is parsed by exact flag name instead of argparse. Hydra overrides
+  and other positional arguments right after `--hf-job` are no longer read as its value. Before
+  this, `--hf-job +algorithm=ia2c` failed with `invalid truth value`. Switches only consume a
+  separate `true`/`false`/`yes`/`no`/`on`/`off`, and arguments after `--` are never read. Existing
+  argparse/tyro commands behave as before, and `parse_launcher_args` keeps its signature and return
+  value.
+- **Outputs:** `outputs` now defaults to `runs`, `videos`, `outputs` and `multirun`, so Hydra apps
+  get their results back without configuration. Missing folders are still skipped, so CleanRL-style
+  projects are unaffected.
+- **Uploads:** folders listed in `outputs` are never uploaded, and `multirun` joins the default
+  excludes.
+
+### 0.1.0
+
+- First release.
 
 ## License
 

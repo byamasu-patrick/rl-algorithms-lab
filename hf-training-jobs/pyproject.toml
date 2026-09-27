@@ -1,6 +1,6 @@
 [project]
 name = "hf-jobs-launch"
-version = "0.1.0"
+version = "0.2.0"
 description = "Run any training script on Hugging Face Jobs by adding --hf-job to its command line."
 authors = [
     {name = "Byamasu Patrick Paul", email = "43136469+byamasu-patrick@users.noreply.github.com"}

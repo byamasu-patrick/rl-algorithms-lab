@@ -86,3 +86,74 @@ def test_module_style_import(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["train.py", "--hf-dry-run", "--x", "1"])
     module.launch()
     assert sys.argv == ["train.py", "--x", "1"]
+
+
+def test_hydra_overrides_after_hf_job_are_left_for_the_script():
+    opts, rest = parse_launcher_args(["--hf-job", "+algorithm=ia2c", "env.time_limit=25", "-m", "seed=0,1"])
+    assert opts.hf_job is True
+    assert rest == ["+algorithm=ia2c", "env.time_limit=25", "-m", "seed=0,1"]
+
+
+def test_only_word_values_are_taken_as_a_separate_switch_value():
+    opts, rest = parse_launcher_args(["--hf-job", "false", "--hf-dry-run", "1"])
+    assert opts.hf_job is False
+    assert opts.hf_dry_run is True
+    assert rest == ["1"]
+
+
+def test_inline_values():
+    opts, rest = parse_launcher_args(["--hf-job=0", "--hf-flavor=l4x1", "x=1"])
+    assert opts.hf_job is False
+    assert opts.hf_flavor == "l4x1"
+    assert rest == ["x=1"]
+
+
+def test_arguments_after_double_dash_are_not_read():
+    opts, rest = parse_launcher_args(["--seed", "1", "--", "--hf-job"])
+    assert opts.hf_job is False
+    assert rest == ["--seed", "1", "--", "--hf-job"]
+
+
+def test_value_option_without_value_is_an_error():
+    with pytest.raises(SystemExit, match="--hf-flavor expects a value"):
+        parse_launcher_args(["--hf-flavor", "--hf-job"])
+
+
+def test_invalid_truth_value_is_an_error():
+    with pytest.raises(SystemExit, match="invalid truth value"):
+        parse_launcher_args(["--hf-job=maybe"])
+
+
+def test_default_outputs_cover_cleanrl_and_hydra():
+    assert JobConfig().outputs == ["runs", "videos", "outputs", "multirun"]
+
+
+def test_output_folders_are_not_uploaded(tmp_path, monkeypatch, capsys):
+    project = tmp_path / "proj"
+    for relative in ["run.py", "configs/default.yaml", "outputs/a/results.csv", "multirun/b/results.csv",
+                     "checkpoints/model.pt"]:
+        path = project / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("x", encoding="utf-8")
+    (project / "pyproject.toml").write_text('[tool.hf-jobs]\noutputs = ["outputs", "checkpoints"]\n',
+                                            encoding="utf-8")
+
+    class FakeApi:
+        def __init__(self, token):
+            pass
+
+        def whoami(self):
+            return {"name": "me"}
+
+    import huggingface_hub
+    monkeypatch.setattr(huggingface_hub, "HfApi", FakeApi)
+    monkeypatch.setattr(huggingface_hub, "get_token", lambda: "hf_x")
+    monkeypatch.setattr(sys, "argv", [str(project / "run.py"), "--hf-job", "--hf-dry-run", "+algorithm=ia2c"])
+    with pytest.raises(SystemExit) as exit_info:
+        launch()
+    assert exit_info.value.code == 0
+    out = capsys.readouterr().out
+    assert "/proj/run.py" in out and "/proj/configs/default.yaml" in out
+    assert "results.csv" not in out and "model.pt" not in out   # configured and default outputs skipped
+    assert "python run.py +algorithm=ia2c" in out
+    assert "for d in outputs checkpoints;" in out

@@ -14,7 +14,7 @@ else:
 # Directories never uploaded with the project code; `exclude` in the config adds to these.
 DEFAULT_EXCLUDE = (
     ".venv", "venv", "env", "__pycache__", ".git", ".hg", ".pytest_cache", ".mypy_cache", ".ruff_cache",
-    ".ipynb_checkpoints", "node_modules", "wandb", "runs", "videos", "logs", "outputs",
+    ".ipynb_checkpoints", "node_modules", "wandb", "runs", "videos", "logs", "outputs", "multirun",
 )
 
 
@@ -30,8 +30,10 @@ class JobConfig:
     """Docker image the Job runs in; it needs `bash`, `cp`, and `pip`."""
     install: str | None = None
     """Shell command that installs dependencies; None picks `pip install -r requirements.txt`, then `pip install .`."""
-    outputs: list[str] = field(default_factory=lambda: ["runs", "videos"])
-    """Directories copied back to the bucket after the script exits, whether or not it succeeded."""
+    outputs: list[str] = field(default_factory=lambda: ["runs", "videos", "outputs", "multirun"])
+    """Directories copied back to the bucket after the script exits, whether or not it succeeded, and
+    never uploaded. Missing ones are skipped. The defaults cover CleanRL-style scripts (runs, videos) and
+    Hydra apps (outputs, multirun)."""
     exclude: list[str] = field(default_factory=list)
     """Extra directory names to leave out of the upload."""
     secrets: list[str] = field(default_factory=list)

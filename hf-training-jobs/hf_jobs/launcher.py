@@ -25,37 +25,75 @@ MOUNT_PATH = "/bucket"
 EXCLUDED_SUFFIXES = {".pyc", ".pyo"}
 
 
-def _str_to_bool(value):
-    value = value.lower()
-    if value in ("y", "yes", "t", "true", "on", "1"):
+TRUE_VALUES = ("y", "yes", "t", "true", "on", "1")
+FALSE_VALUES = ("n", "no", "f", "false", "off", "0")
+# Only these may follow a switch as a separate argument (`--hf-job false`). Anything else, such as a
+# Hydra override (`--hf-job +algorithm=ia2c`) or a number, is left for the script.
+SEPARATE_BOOL_VALUES = ("true", "false", "yes", "no", "on", "off")
+
+# flag -> (attribute name, takes a value); switches default to False, value options to None
+LAUNCHER_FLAGS = {
+    "--hf-job": ("hf_job", False),           # submit this run to Hugging Face Jobs
+    "--hf-namespace": ("hf_namespace", True),  # user or org the Job runs and is billed under
+    "--hf-flavor": ("hf_flavor", True),      # Job hardware, e.g. cpu-upgrade, t4-small, l4x1
+    "--hf-timeout": ("hf_timeout", True),    # maximum Job duration, e.g. 90m, 12h
+    "--hf-image": ("hf_image", True),        # Docker image the Job runs in
+    "--hf-follow": ("hf_follow", False),     # stream the Job logs until it finishes
+    "--hf-dry-run": ("hf_dry_run", False),   # print what would be uploaded and submitted, then exit
+}
+
+
+def _str_to_bool(flag, value):
+    lowered = value.lower()
+    if lowered in TRUE_VALUES:
         return True
-    if value in ("n", "no", "f", "false", "off", "0"):
+    if lowered in FALSE_VALUES:
         return False
-    raise argparse.ArgumentTypeError(f"invalid truth value {value!r}")
+    raise SystemExit(f"{flag}: invalid truth value {value!r}")
 
 
 def parse_launcher_args(argv):
     """Split `argv` into (launcher options, remaining script arguments).
 
-    Options left unset are None, so the project's configuration can supply them.
+    Only the exact flags in LAUNCHER_FLAGS are taken, as `--flag value` or `--flag=value`; every other
+    argument is returned unchanged and in order, so argparse/tyro flags and Hydra overrides both pass
+    through. Arguments after `--` are never read. Value options left unset are None, so the project's
+    configuration can supply them.
     """
-    # allow_abbrev=False keeps script flags such as --hf-entity from being read as ours.
-    parser = argparse.ArgumentParser(add_help=False, allow_abbrev=False)
-    parser.add_argument("--hf-job", type=_str_to_bool, default=False, nargs="?", const=True,
-                        help="submit this run to Hugging Face Jobs instead of running it locally")
-    parser.add_argument("--hf-namespace", type=str, default=None,
-                        help="user or org the Job runs and is billed under")
-    parser.add_argument("--hf-flavor", type=str, default=None,
-                        help="Job hardware, e.g. cpu-upgrade, t4-small, a10g-small, l4x1")
-    parser.add_argument("--hf-timeout", type=str, default=None,
-                        help="maximum Job duration, e.g. 90m, 12h")
-    parser.add_argument("--hf-image", type=str, default=None,
-                        help="Docker image the Job runs in")
-    parser.add_argument("--hf-follow", type=_str_to_bool, default=False, nargs="?", const=True,
-                        help="stream the Job logs until it finishes")
-    parser.add_argument("--hf-dry-run", type=_str_to_bool, default=False, nargs="?", const=True,
-                        help="print what would be uploaded and submitted, then exit")
-    return parser.parse_known_args(argv)
+    argv = list(argv)
+    opts = {dest: (None if takes_value else False) for dest, takes_value in LAUNCHER_FLAGS.values()}
+    rest = []
+    i = 0
+    while i < len(argv):
+        token = argv[i]
+        if token == "--":
+            rest.extend(argv[i:])
+            break
+        flag, has_inline, inline = token.partition("=")
+        if flag not in LAUNCHER_FLAGS:
+            rest.append(token)
+            i += 1
+            continue
+
+        dest, takes_value = LAUNCHER_FLAGS[flag]
+        following = argv[i + 1] if i + 1 < len(argv) else None
+        if takes_value:
+            if has_inline:
+                opts[dest] = inline
+            elif following is None or following.startswith("-"):
+                raise SystemExit(f"{flag} expects a value, e.g. {flag}=<value>")
+            else:
+                opts[dest] = following
+                i += 1
+        elif has_inline:
+            opts[dest] = _str_to_bool(flag, inline)
+        elif following is not None and following.lower() in SEPARATE_BOOL_VALUES:
+            opts[dest] = _str_to_bool(flag, following)
+            i += 1
+        else:
+            opts[dest] = True
+        i += 1
+    return argparse.Namespace(**opts), rest
 
 
 def collect_files(folder, exclude=()):
@@ -169,10 +207,12 @@ def launch():
 
     run_id = f"{project_dir.name}-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S')}-{token_hex(3)}"
     bucket_id = f"{namespace}/{config.bucket}"
+    # output folders are produced by the run, so a local copy of them is never uploaded
+    excluded = [*config.exclude, *config.outputs]
     uploads = [
         (path, f"{run_id}/{name}/{relative}")
         for name, folder in folders.items()
-        for path, relative in collect_files(folder, config.exclude)
+        for path, relative in collect_files(folder, excluded)
     ]
     command = remote_command(config, project_dir, script_path.name, script_args)
     secrets = collect_secrets(config, token)
