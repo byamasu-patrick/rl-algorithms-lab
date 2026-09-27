@@ -174,7 +174,7 @@ is subtracted, and the result is divided by the group's standard deviation.
 \mathcal{J}_{GRPO}(\theta) = \mathbb{E}\Bigg[\frac{1}{G}\sum_{i=1}^{G}\frac{1}{|o_i|}\sum_{t=1}^{|o_i|}
 \Big(\min\big(\rho_{i,t}\hat{A}_{i,t},\ \mathrm{clip}(\rho_{i,t}, 1-\varepsilon, 1+\varepsilon)\,\hat{A}_{i,t}\big)
 - \beta\, \mathbb{D}_{KL}\big[\pi_\theta \,\|\, \pi_{ref}\big]\Big)\Bigg],
-\qquad \rho_{i,t} = \frac{\pi_\theta(o_{i,t} \mid q, o_{i,<t})}{\pi_{\theta_{old}}(o_{i,t} \mid q, o_{i,<t})}
+\qquad \rho_{i,t} = \frac{\pi_\theta(o_{i,t} \mid q, o_{i,\lt t})}{\pi_{\theta_{old}}(o_{i,t} \mid q, o_{i,\lt t})}
 ```
 
 with the KL divergence estimated per step by the paper's unbiased estimator
