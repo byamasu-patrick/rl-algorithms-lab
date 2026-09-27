@@ -1,10 +1,9 @@
 torch==2.13.0
 numpy==1.26.4
-gymnasium[atari]==0.29.1
+gymnasium[atari,accept-rom-license]==0.29.1
 ale-py==0.8.1
-AutoROM[accept-rom-license]==0.6.1
 stable-baselines3==2.3.2
-opencv-python==4.10.0.84
+opencv-python-headless==4.10.0.84
 moviepy==1.0.3
 pygame==2.6.1
 tensorboard==2.21.0
@@ -12,3 +11,5 @@ wandb==0.28.2
 huggingface_hub==1.28.0
 tenacity==9.1.2
 setuptools==84.0.0
+# Launcher for Hugging Face Jobs (--hf-job); resolved relative to this directory.
+-e ../hf-training-jobs

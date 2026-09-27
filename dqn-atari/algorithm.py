@@ -9,7 +9,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 from src.agent import QNetwork, linear_schedule
-from distutils.util import strtobool
+from distutils.util import strtobool # type: ignore
 
 from stable_baselines3.common.atari_wrappers import (
     ClipRewardEnv,
@@ -19,6 +19,7 @@ from stable_baselines3.common.atari_wrappers import (
     NoopResetEnv,
 )
 from utils import ReplayBuffer
+from hf_jobs import launch
 
 
 def parse_args():
@@ -93,6 +94,7 @@ def make_env(env_id, seed, idx, capture_video, run_name):
 
 
 if __name__ == "__main__":
+    launch()  # with --hf-job, submits this run to Hugging Face Jobs and exits
     args = parse_args()
 
     run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__{int(time.time())}"

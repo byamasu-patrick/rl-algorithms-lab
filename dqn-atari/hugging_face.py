@@ -28,7 +28,7 @@ def push_to_hub(
     from huggingface_hub.repocard import metadata_eval_result, metadata_save
 
     api = HfApi()
-    repo_url = api.createZXC_repo(
+    repo_url = api.create_repo(
         repo_id=repo_id,
         exist_ok=True,
         private=private,
@@ -129,10 +129,11 @@ python {algorithm_variant_filename} {" ".join(sys.argv[1:])}
     # fetch source code
     operations.append(CommitOperationAdd(path_or_fileobj=sys.argv[0], path_in_repo=sys.argv[0].split("/")[-1]))
 
-    # upload poetry files at the root of the repository
-    git_root = Path(__file__).parent.parent
-    operations.append(CommitOperationAdd(path_or_fileobj=str(git_root / "pyproject.toml"), path_in_repo="pyproject.toml"))
-    operations.append(CommitOperationAdd(path_or_fileobj=str(git_root / "poetry.lock"), path_in_repo="poetry.lock"))
+    # upload the project's dependency files; poetry.lock only exists after `poetry lock`
+    project_root = Path(__file__).parent
+    for dependency_file in ("pyproject.toml", "poetry.lock", "requirements.txt"):
+        if (project_root / dependency_file).exists():
+            operations.append(CommitOperationAdd(path_or_fileobj=str(project_root / dependency_file), path_in_repo=dependency_file))
 
     api.create_commit(
         repo_id=repo_id,

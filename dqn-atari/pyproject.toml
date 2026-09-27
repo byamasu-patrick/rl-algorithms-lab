@@ -1,32 +1,36 @@
 [project]
 name = "dqn"
 version = "0.1.0"
-description = "A from-scratch implementation of Deep Q-Networks: experience replay, a delayed target network, and epsilon-greedy exploration, with optional greedy evaluation of a saved checkpoint and a Hugging Face Hub upload path."
+description = "A from-scratch implementation of the Nature DQN on Atari: experience replay, a delayed target network, and epsilon-greedy exploration, with greedy evaluation of a saved checkpoint, a Hugging Face Hub upload path, and optional training on Hugging Face Jobs."
 authors = [
     {name = "Byamasu Patrick Paul",email = "43136469+byamasu-patrick@users.noreply.github.com"}
 ]
 license = {text = "MIT"}
 readme = "README.md"
-requires-python = ">=3.10,<3.14"
+# ale-py 0.8.1 (the release that registers Atari envs with gymnasium 0.29) has wheels up to Python 3.11.
+requires-python = ">=3.10,<3.12"
 dependencies = [
-    "gymnasium==1.3.0",
     "torch==2.13.0",
-    "numpy==2.5.2",
+    # gymnasium 0.29's passive env checker still uses np.bool8, which numpy 2 removed.
+    "numpy==1.26.4",
+    "gymnasium[atari,accept-rom-license]==0.29.1",
+    "ale-py==0.8.1",
+    "stable-baselines3==2.3.2",
+    # Headless build: the regular one needs libGL, which the Linux Job image lacks.
+    "opencv-python-headless==4.10.0.84",
+    # gymnasium 0.29's RecordVideo is written against the moviepy 1.x API.
+    "moviepy==1.0.3",
+    "pygame==2.6.1",
     "tensorboard==2.21.0",
     "wandb==0.28.2",
-    "moviepy==2.2.1",
-    # pygame-ce is a drop-in fork (still `import pygame`) with wheels for newer
-    # Pythons; gymnasium needs it to render CartPole for --capture-video.
-    "pygame-ce==2.5.8",
-    "stable-baselines3==2.9.0",
+    "setuptools==84.0.0",
 ]
 
 [project.optional-dependencies]
 # Needed only by the --upload-model path in hugging_face.py.
-# `tenacity` is imported there at module level but is absent from requirements.txt.
 hub = [
     "huggingface-hub==1.28.0",
-    "tenacity>=8.2.2",
+    "tenacity==9.1.2",
 ]
 
 [tool.poetry]
@@ -34,6 +38,10 @@ hub = [
 # directly and there is no importable top-level package to build. With
 # package-mode disabled, `poetry install` resolves dependencies only.
 package-mode = false
+
+[tool.poetry.dependencies]
+# Launcher behind --hf-job; algorithm.py imports it unconditionally.
+hf-training-jobs = {path = "../hf-training-jobs", develop = true}
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
