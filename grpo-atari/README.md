@@ -9,7 +9,7 @@ This project trains three algorithms on `BreakoutNoFrameskip-v4` under identical
 | --- | --- | --- |
 | **DQN** | off-policy, value-based | ported from [dqn-atari](../dqn-atari) |
 | **PPO** | on-policy actor-critic | ported from [ppo-atari](../ppo-atari) |
-| **GRPO** | on-policy, critic-free | the variants from [revisiting-grpo](../revisiting-grpo); *training loop not implemented yet* |
+| **GRPO** | on-policy, critic-free | the DeepSeekMath objective ([Shao et al., 2024](https://arxiv.org/abs/2402.03300)), plus the critic-free baselines of [revisiting-grpo](../revisiting-grpo) |
 
 All three share one environment pipeline, one run and logging setup, one evaluation protocol, and one
 Hub upload path, so differences in the results come from the algorithms rather than the plumbing.
@@ -32,11 +32,13 @@ grpo-atari/
 │   ├── hub.py                # Hugging Face upload and model card
 │   ├── checkpoints.py        # periodic checkpoints and warm starts (from revisiting-grpo)
 │   ├── replay_buffer.py      # DQN replay buffer
+│   ├── advantages.py         # GRPO advantage estimators (pure functions, unit-tested)
 │   └── algorithms/
 │       ├── __init__.py       # registry: name -> module
 │       ├── dqn.py            # QNetwork, flags, training loop
-│       ├── ppo.py            # Agent, flags (shared with GRPO), training loop
-│       └── grpo.py           # flags and validation; training loop to come
+│       ├── ppo.py            # Agent (actor + critic), flags shared with GRPO, training loop
+│       └── grpo.py           # Policy (actor only), group rollouts, GRPO objective, training loop
+├── tests/                    # advantage estimators, GRPO objective, seeded-group determinism
 ├── pyproject.toml
 └── requirements.txt
 ```
@@ -73,7 +75,9 @@ Run from this directory.
 ```bash
 python algorithm.py dqn
 python algorithm.py ppo --seed 2
-python algorithm.py ppo --track --save-model --upload-model --hf-entity byamasupatrick
+python algorithm.py grpo                                   # outcome supervision, 2 groups of 8
+python algorithm.py grpo --advantage-type process
+python algorithm.py grpo --track --save-model --upload-model --hf-entity byamasupatrick
 python algorithm.py dqn --help          # the flags one algorithm accepts
 tensorboard --logdir runs
 ```
@@ -88,8 +92,8 @@ a sweep be restarted without repeating work. Pass `-o` / `--overwrite` to rerun 
 `experiments.py` expands algorithms × seeds into runs:
 
 ```bash
-python experiments.py --algos dqn ppo --seeds 1 2 3 --track --save-model
-python experiments.py --algos dqn ppo --seeds 1 2 3 --dry-run            # print the commands only
+python experiments.py --algos dqn ppo grpo --seeds 1 2 3 --track --save-model
+python experiments.py --algos dqn ppo grpo --seeds 1 2 3 --dry-run       # print the commands only
 ```
 
 - **Shared flags.** Any flag `experiments.py` does not recognise is passed to every run, for example
@@ -99,13 +103,15 @@ python experiments.py --algos dqn ppo --seeds 1 2 3 --dry-run            # print
 - **Running locally.** Runs train as parallel processes, at most `--max-parallel` at a time (default:
   the number of CPU cores). Each run writes its output to `logs/{algo}__seed{seed}.log`, and a summary
   prints as runs finish.
-- **Algorithms not ready yet.** Unimplemented algorithms (currently `grpo`) are skipped with a
-  message, so `--algos dqn ppo grpo` already works.
+- **Algorithms not ready yet.** A module can set `IMPLEMENTED = False`; `experiments.py` then skips it
+  with a message instead of failing the sweep.
 
 Size `--max-parallel` to the machine's memory. A DQN run's replay buffer holds 1M stacked frames of
 4 × 84 × 84 bytes by default, about 28 GB once full. That much is needed even with
 `optimize_memory_usage`, which avoids storing each next observation a second time. PPO needs well
-under 1 GB. On a smaller machine, lower it with `--dqn-args "--buffer-size 200000"` (about 5.6 GB).
+under 1 GB. GRPO holds each iteration's episodes in memory as `uint8` frames, about 28 KB per step:
+16 environments × a few thousand steps per game is a few GB. On a smaller machine, lower DQN's buffer
+with `--dqn-args "--buffer-size 200000"` (about 5.6 GB).
 
 ---
 
@@ -117,7 +123,7 @@ every run is submitted as its own Job, so the whole comparison trains in paralle
 ```bash
 python algorithm.py dqn --track --save-model --upload-model --hf-entity byamasupatrick --hf-job --hf-flavor l40sx1
 
-python experiments.py --algos dqn ppo --seeds 1 2 3 --track --save-model --upload-model \
+python experiments.py --algos dqn ppo grpo --seeds 1 2 3 --track --save-model --upload-model \
     --hf-entity byamasupatrick --hf-job --hf-flavor l40sx1 --hf-timeout 36h
 ```
 
@@ -137,7 +143,7 @@ See [hf-training-jobs](../hf-training-jobs) for the other `--hf-*` flags and how
 | Environment | `src/environment.py` | Same wrappers, frame stack, reward clipping, and episode boundaries. |
 | Budget | `--total-timesteps` (default 10M), a shared flag | Every algorithm is measured over the same number of environment steps. |
 | Episode metrics | `charts/episodic_return`, `charts/episodic_length` | Whole-game, unclipped scores, logged the same way by every algorithm. |
-| Evaluation | `src/evaluation.py` | `--eval-episodes` full games on one environment after training, logged as `eval/episodic_return` and `eval/mean_episodic_return`. DQN acts ε-greedily at `--end-e`; PPO samples from its policy. |
+| Evaluation | `src/evaluation.py` | `--eval-episodes` full games on one environment after training, logged as `eval/episodic_return` and `eval/mean_episodic_return`. DQN acts ε-greedily at `--end-e`; PPO and GRPO sample from their policies. |
 | Tracking | `src/run.py` | W&B project `grpo-atari`, run grouped by `--exp-name` and tagged with the algorithm, so runs line up in one workspace. |
 
 ### Environment preprocessing
@@ -148,7 +154,7 @@ See [hf-training-jobs](../hf-training-jobs) for the other `--hf-*` flags and how
 | `RecordEpisodeStatistics` (whole-game, unclipped score) | | always |
 | `NoopResetEnv` | `--noop-max` | `30` |
 | `MaxAndSkipEnv` | `--frame-skip` | `4` |
-| `EpisodicLifeEnv` | `--episodic-life` / `--no-episodic-life` | on |
+| `EpisodicLifeEnv` | `--episodic-life` / `--no-episodic-life` | on for `dqn` and `ppo`; **off for `grpo`** (see [GRPO](#grpo)) |
 | `FireResetEnv` | | games with a FIRE action |
 | `ClipRewardEnv` | `--clip-rewards` / `--no-clip-rewards` | on |
 | `ResizeObservation`, `GrayScaleObservation` | `--screen-size` | `84` |
@@ -158,23 +164,120 @@ See [hf-training-jobs](../hf-training-jobs) for the other `--hf-*` flags and how
 
 ## GRPO
 
-GRPO ([Shao et al., 2024](https://arxiv.org/abs/2402.03300)) is PPO with the value network removed.
-Each outcome's advantage is its return relative to a group of other samples: the group mean is
-subtracted and the result is scaled by the group's standard deviation.
-[de Oliveira et al. (2025)](../revisiting-grpo) studied it in classical control. The `grpo`
-subcommand exposes their return and baseline variants, and its flags and validation are in place:
+GRPO ([Shao et al., 2024](https://arxiv.org/abs/2402.03300)) is PPO with the critic removed. There is
+**no value network and no GAE**. Instead, the policy samples a *group* of outputs for the same
+question, and each output's advantage is its reward relative to the rest of the group: the group mean
+is subtracted, and the result is divided by the group's standard deviation.
+[src/algorithms/grpo.py](src/algorithms/grpo.py) implements the objective of the paper's equation 3:
 
-| Configuration | Return | Baseline | Critic |
+$$
+\mathcal{J}_{GRPO}(\theta) = \mathbb{E}\Bigg[\frac{1}{G}\sum_{i=1}^{G}\frac{1}{|o_i|}\sum_{t=1}^{|o_i|}
+\Big(\min\big(\rho_{i,t}\hat{A}_{i,t},\ \mathrm{clip}(\rho_{i,t}, 1-\varepsilon, 1+\varepsilon)\,\hat{A}_{i,t}\big)
+- \beta\, \mathbb{D}_{KL}\big[\pi_\theta \,\|\, \pi_{ref}\big]\Big)\Bigg],
+\qquad \rho_{i,t} = \frac{\pi_\theta(o_{i,t} \mid q, o_{i,<t})}{\pi_{\theta_{old}}(o_{i,t} \mid q, o_{i,<t})}
+$$
+
+with the KL divergence estimated per step by the paper's unbiased estimator
+$\frac{\pi_{ref}}{\pi_\theta} - \log\frac{\pi_{ref}}{\pi_\theta} - 1 \ge 0$.
+
+### From language models to Atari
+
+| DeepSeekMath | Here |
+| --- | --- |
+| question $q$ | a start state, fixed by a reset seed |
+| group of $G$ outputs | $G$ environments reset with the **same seed** (`--num-groups` groups of `--num-envs / --num-groups`) |
+| output $o_i$ | one whole game |
+| token $o_{i,t}$ | one action |
+| reward model score $r_i$ | the game's total reward (clipped to its sign per step, as for DQN and PPO) |
+| policy model | [`Policy`](src/algorithms/grpo.py): PPO's Nature CNN and actor head, with no critic head |
+| reference model $\pi_{ref}$ | a frozen copy of the policy, refreshed every `--ref-update-every` iterations (Algorithm 1's outer loop) |
+| $\mu$ GRPO iterations | `--update-epochs` passes over each batch |
+
+`NoFrameskip-v4` games have no sticky actions, and the no-op start is drawn from the reset seed. So a
+group starts from identical frames and diverges only through the policy's own sampling, which is what
+makes the group mean a fair baseline for each member.
+[tests/test_advantages.py](tests/test_advantages.py) checks this.
+
+Each iteration plays one game in every environment. Environments are stepped individually, so one
+that finishes early stops using steps while the rest of its group plays on.
+
+### Advantages
+
+`--advantage-type` selects how $\hat{A}_{i,t}$ is computed. None of the options uses a value function.
+
+| `--advantage-type` | $\hat{A}_{i,t}$ | Source |
+| --- | --- | --- |
+| **`outcome`** (default) | $\frac{r_i - \mathrm{mean}(\mathbf{r})}{\mathrm{std}(\mathbf{r})}$ for every step of game $i$, with $\mathbf{r}$ the totals of $i$'s group | DeepSeekMath §4.1.2, outcome supervision |
+| `process` | rewards normalized by the mean and std of all rewards in the group, then summed from step $t$ to the end | DeepSeekMath §4.1.3, process supervision |
+| `baseline` | discounted Monte Carlo return minus `--baseline-type`: `batch_mean`, `same_seed_mean`, `ema`, `stats`, `uniform`, or `constant`; divided by the batch std with `--scale-adv-batch` | revisiting-grpo's critic-free variants |
+
+The estimators live in [src/advantages.py](src/advantages.py) as pure functions. Each one is tested
+against a hand computation in [tests/test_advantages.py](tests/test_advantages.py).
+
+If every game in a group scores the same, the group has no spread and every advantage in it is 0, so
+that group teaches nothing. Early in Breakout most games score 0, so watch
+`grpo/degenerate_group_fraction`. Larger groups (`--num-envs` / `--num-groups`) make identical scores
+less likely.
+
+### Loss
+
+[`grpo_loss`](src/algorithms/grpo.py) computes the negative objective over a minibatch of steps:
+
+- the clipped surrogate, with $\varepsilon$ = `--clip-coef`;
+- plus $\beta \cdot$ KL to the reference policy, with $\beta$ = `--kl-coef` (0 disables it and the
+  reference copy);
+- minus `--ent-coef` × entropy.
+
+`--loss-aggregation sequence` (the default) weights each step by $1/|o_i|$, which reproduces
+$\frac{1}{G}\sum_i \frac{1}{|o_i|}\sum_t$: every game counts equally, whatever its length.
+`--loss-aggregation token` averages over all steps instead, so long games weigh more.
+[tests/test_grpo_objective.py](tests/test_grpo_objective.py) checks the following:
+
+- the KL estimator is zero when the policies match, positive otherwise, and in expectation equals
+  the true KL;
+- the clipping and both aggregations give the expected values;
+- the gradient raises the probability of an action with positive advantage.
+
+### Whole games, not lives
+
+GRPO defaults to `--no-episodic-life`, unlike DQN and PPO. Resetting a group to a shared seed must
+restart the game. With life-loss episodes, a reset in the middle of a game only continues it, so the
+group members would not start from the same state. Treating whole games as episodes also follows
+Machado et al. (2018), who recommend not giving the agent life-loss signals. The comparison stays
+fair: every algorithm logs whole-game scores and is evaluated on whole games.
+
+`--episodic-life` is still accepted with `--num-groups 0`. There, each episode is one life, and the
+whole batch forms one unseeded group.
+
+### Defaults compared with the paper
+
+| | DeepSeekMath | Here | Why |
 | --- | --- | --- | --- |
-| **GRPO (default)** | full-episode Monte Carlo (`--return-type mc --num-steps 0`) | mean of the batch's returns (`--baseline-type batch_mean`), scaled by batch std (`--scale-adv-batch`) | no |
-| GRPO, same-seed groups | full-episode Monte Carlo | mean over envs reset with the same seed (`--baseline-type same_seed_mean --num-groups G`) | no |
-| TD-n | n-step TD (`--return-type td`) | any `--baseline-type` | optional |
-| PPO-equivalent | GAE (`--return-type gae`) | value network | yes |
+| Group size $G$ | 64 | 8 (`--num-envs 16`, `--num-groups 2`) | each member is a full Atari game |
+| $\beta$ (`--kl-coef`) | 0.04 | 0.04 | |
+| $\varepsilon$ (`--clip-coef`) | not stated | 0.1 | the Atari PPO value |
+| $\mu$ (`--update-epochs`) | 1 | 4 | matches the PPO baseline; set `--update-epochs 1` for the paper's setting |
+| Reference model | reset each outer iteration | refreshed every 10 iterations | training starts from a random policy, not an SFT model |
+| Entropy bonus | none | 0.01 | matches the PPO baseline; `--ent-coef 0` removes it |
+| Reward | learned reward model | the game score | |
 
-`same_seed_mean` is the closest analogue of GRPO's group of completions for one prompt. Each group of
-environments is reset with a shared seed. `NoFrameskip-v4` games have no sticky actions, so members
-of a group diverge only through the policy's sampling and the random no-op starts. The other
-baselines (`constant`, `uniform`, `stats`, `ema`) are the revisiting-grpo ablations.
+### Metrics
+
+On top of the shared episode, loss, and SPS metrics, GRPO logs:
+
+- `losses/kl_ref`: the mean per-step KL to the reference policy;
+- `grpo/advantage_mean`, `grpo/advantage_std`;
+- `grpo/degenerate_group_fraction`: the fraction of groups with no score spread;
+- `rollout/batch_size`, `rollout/trajectories`, `rollout/mean_trajectory_length`,
+  `rollout/mean_trajectory_reward`;
+- `time/collection`, `time/update`.
+
+### Tests
+
+```bash
+pip install pytest
+pytest tests
+```
 
 ---
 
@@ -286,19 +389,27 @@ itself, run `pip install -e ../hf-training-jobs` afterwards.
 
 ### `grpo`
 
-The same flags as `ppo`, except that `--gae` is absent, `--num-steps` defaults to `0` (full
-episodes), and `--norm-adv` defaults to off. It adds:
+Shares the policy-optimization flags of `ppo` (`--learning-rate`, `--anneal-lr`, `--gamma`,
+`--num-minibatches`, `--update-epochs`, `--norm-adv`, `--clip-coef`, `--ent-coef`, `--max-grad-norm`,
+`--target-kl`). It has none of PPO's critic flags (`--gae`, `--gae-lambda`, `--vf-coef`,
+`--clip-vloss`), and its own defaults and flags:
 
 | Flag | Default | Description |
 | --- | --- | --- |
-| `--use-value-fn` | off | Train a value head and use it where the configuration needs one. |
-| `--return-type` | `mc` | `gae`, `td` (n-step, `n = --num-steps`), or `mc` (full episode). |
-| `--baseline-type` | `batch_mean` | `value`, `constant`, `uniform`, `stats`, `batch_mean`, `ema`, or `same_seed_mean`. Ignored for `gae`. |
-| `--scale-adv-batch` | on | Divide advantages by the batch standard deviation. |
+| `--num-envs` | `16` | Environments; each plays one game per iteration. |
+| `--num-steps` | `0` | `0` collects whole games. A positive value collects fixed-length segments, with no bootstrap (there is no critic); only with `--advantage-type baseline`. |
+| `--norm-adv` | off | Advantages are already group-normalized. |
+| `--advantage-type` | `outcome` | `outcome`, `process`, or `baseline`; see [Advantages](#advantages). |
+| `--num-groups` | `2` | Groups of environments sharing a reset seed; each needs at least 2 members. `0`: the whole batch is one unseeded group. |
+| `--kl-coef` | `0.04` | β, the weight of the KL penalty to the reference policy; `0` disables it. |
+| `--ref-update-every` | `10` | Iterations between copies of the policy into the reference; `0` keeps the initial policy. |
+| `--loss-aggregation` | `sequence` | `sequence`: 1/G Σᵢ 1/\|oᵢ\| Σₜ, as in the paper; `token`: mean over all steps. |
+| `--baseline-type` | `batch_mean` | With `--advantage-type baseline`: `batch_mean`, `same_seed_mean`, `ema`, `stats`, `uniform`, or `constant`. |
+| `--scale-adv-batch` | on | With `--advantage-type baseline`: divide advantages by the batch std. |
 | `--baseline-constant` | `None` | Baseline for `constant`. |
 | `--baseline-uniform-low`, `--baseline-uniform-high` | `None` | Range for `uniform`; falls back to the env's reward range, then `[-1, 1]`. |
 | `--baseline-ema-beta` | `0.9` | Decay for `ema`, with Adam-style bias correction. |
-| `--num-groups` | `0` | Seed-sharing groups for `same_seed_mean`; must divide `--num-envs`. |
+| `--episodic-life` | **off** | See [Whole games, not lives](#whole-games-not-lives). |
 
 ---
 
@@ -312,6 +423,10 @@ episodes), and `--norm-adv` defaults to off. It adds:
   (2024), which introduced GRPO. [arXiv:2402.03300](https://arxiv.org/abs/2402.03300)
 - de Oliveira et al., *Learning Without Critics? Revisiting GRPO in Classical Reinforcement Learning
   Environments*. Latinx in AI @ NeurIPS 2025. Code and citation in [revisiting-grpo](../revisiting-grpo).
+- Schulman, *Approximating KL Divergence* (2020), the KL estimator used in the objective.
+  [joschu.net/blog/kl-approx.html](http://joschu.net/blog/kl-approx.html)
+- Machado et al., *Revisiting the Arcade Learning Environment* (2018), on not using life-loss signals.
+  [arXiv:1709.06009](https://arxiv.org/abs/1709.06009)
 
 ## License
 

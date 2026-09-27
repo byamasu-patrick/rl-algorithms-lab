@@ -22,7 +22,7 @@ how does it compare with DQN and PPO?** To get there, the repository has:
 | [dqn/](dqn/) | A from-scratch **Deep Q-Network**: replay buffer, target network, and epsilon-greedy exploration. The off-policy, value-based contrast to the PPO directories. | Working on classic control |
 | [dqn-atari/](dqn-atari/) | The **Nature DQN** on Atari: the paper's convolutional Q-network, frame preprocessing, evaluation, a Hub upload with a model card, and training on Hugging Face Jobs. | Full 10M-step Breakout run in progress |
 | [revisiting-grpo/](revisiting-grpo/) | An experiment harness for asking **whether the critic is necessary**, swapping the learned value baseline for group-statistic alternatives across a large sweep. | Reproduction of published results |
-| [grpo-atari/](grpo-atari/) | **DQN vs PPO vs GRPO on Atari**: the three algorithms as interchangeable modules over one shared environment, logging, evaluation, and upload pipeline, runnable alone or as parallel sweeps. | DQN and PPO working; GRPO training loop next |
+| [grpo-atari/](grpo-atari/) | **DQN vs PPO vs GRPO on Atari**: the three algorithms as interchangeable modules over one shared environment, logging, evaluation, and upload pipeline, runnable alone or as parallel sweeps. | All three implemented; GRPO follows the DeepSeekMath objective |
 | [hf-training-jobs/](hf-training-jobs/) | **`hf-jobs-launch`**: add `--hf-job` to any training command and it runs on Hugging Face Jobs instead. Installable from PyPI or GitHub. | Used by `dqn-atari/` and `grpo-atari/`; ready to publish |
 
 ---
@@ -73,8 +73,9 @@ how does it compare with DQN and PPO?** To get there, the repository has:
 ├── grpo-atari/             # DQN vs PPO vs GRPO on Atari (pip, Python 3.11)
 │   ├── algorithm.py        # train one: python algorithm.py {dqn,ppo,grpo}
 │   ├── experiments.py      # algorithms x seeds, in parallel, locally or as HF Jobs
-│   ├── src/                # shared args, environment, run, evaluation, hub, checkpoints
+│   ├── src/                # shared args, environment, run, evaluation, hub, checkpoints, advantages
 │   │   └── algorithms/     # dqn.py, ppo.py, grpo.py
+│   ├── tests/              # GRPO advantages, objective, seeded-group determinism
 │   └── README.md           # layout, comparison protocol, GRPO variants, flags
 │
 ├── hf-training-jobs/       # the hf-jobs-launch package (import: hf_jobs)
@@ -256,7 +257,7 @@ Reproduction instructions, the Docker path, and the paper citation are in
 
 This is where the threads meet. The project trains three algorithms on `BreakoutNoFrameskip-v4`:
 DQN (from `dqn-atari/`), PPO (from `ppo-atari/`, moved onto the same Gymnasium 0.29 environment),
-and GRPO, which takes the critic-free variants from `revisiting-grpo/` to pixels.
+and GRPO, the critic-free method of DeepSeekMath, taken to pixels.
 
 They are compared under identical conditions:
 
@@ -273,14 +274,28 @@ They are compared under identical conditions:
 cd grpo-atari
 pip install -r requirements.txt                          # Python 3.10 or 3.11
 python algorithm.py dqn --track --save-model             # one algorithm
-python algorithm.py ppo --seed 2 --track --save-model
-python experiments.py --algos dqn ppo --seeds 1 2 3 --track --save-model            # locally, in parallel
-python experiments.py --algos dqn ppo --seeds 1 2 3 --track --save-model --hf-job   # one HF Job per run
+python algorithm.py grpo --seed 2 --track --save-model
+python experiments.py --algos dqn ppo grpo --seeds 1 2 3 --track --save-model            # locally, in parallel
+python experiments.py --algos dqn ppo grpo --seeds 1 2 3 --track --save-model --hf-job   # one HF Job per run
 ```
 
-The `grpo` subcommand already takes its full flag set: return type, baseline type (including
-`same_seed_mean` groups, the closest analogue of GRPO's group of completions per prompt), and
-advantage scaling. The flags are validated now, and the training loop is the next step.
+GRPO implements the objective of DeepSeekMath ([Shao et al., 2024](https://arxiv.org/abs/2402.03300)),
+eq. 3:
+
+- the PPO clipped surrogate;
+- a β-weighted KL penalty to a periodically refreshed reference policy, using the paper's unbiased
+  estimator;
+- a 1/|oᵢ| per-trajectory mean, so every game counts equally.
+
+It has **no critic and no GAE**. The policy network is actor-only, and advantages come from groups:
+
+- **Groups.** Environments reset with the same seed start from identical frames, since
+  `NoFrameskip-v4` has no sticky actions. Each group then acts as the "group of outputs for one
+  question".
+- **Advantages.** The default is outcome supervision, each game's total reward normalized by its
+  group's mean and std. The alternatives are process supervision and the critic-free baselines of
+  `revisiting-grpo/`.
+- **Episodes.** Episodes are whole games. The estimators and the objective are unit-tested.
 
 Full documentation is in **[grpo-atari/README.md](grpo-atari/README.md)**.
 
@@ -344,6 +359,7 @@ Hardware sizing for the Atari runs:
 | --- | --- | --- |
 | DQN, 1M replay buffer | about 28 GB once the buffer fills | `l40sx1` (62 GB), `a100-large` (142 GB); `l4x1` (30 GB) runs but with no headroom |
 | PPO, 8 environments | well under 1 GB | `t4-small`, `l4x1` |
+| GRPO, 16 environments | a few GB: one iteration of whole games as `uint8` frames | `t4-small`, `l4x1` |
 
 ---
 
@@ -418,7 +434,7 @@ et al. (2015). `dqn/` vendors a replay buffer derived from Stable-Baselines3 int
 [dqn/utils.py](dqn/utils.py), which is MIT-licensed; see [NOTICE](NOTICE).
 
 `dqn-atari/` follows the training loop of CleanRL's `dqn_atari.py` and vendors the same
-Stable-Baselines3-derived replay buffer. `grpo-atari/` reuses that buffer, ports the DQN and PPO
+Stable-Baselines3-derived replay buffer. `grpo-atari/` implements GRPO from the DeepSeekMath paper; it reuses that buffer, ports the DQN and PPO
 loops above, and adapts the argument set and checkpoint utilities of `revisiting-grpo/`.
 `hf-training-jobs/` is original work.
 
