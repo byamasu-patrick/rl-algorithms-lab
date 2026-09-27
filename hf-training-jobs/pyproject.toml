@@ -1,20 +1,46 @@
 [project]
-name = "hf-training-jobs"
+name = "hf-jobs-launch"
 version = "0.1.0"
-description = "Submit a training script to Hugging Face Jobs with a single --hf-job flag."
+description = "Run any training script on Hugging Face Jobs by adding --hf-job to its command line."
 authors = [
-    {name = "Byamasu Patrick Paul",email = "43136469+byamasu-patrick@users.noreply.github.com"}
+    {name = "Byamasu Patrick Paul", email = "43136469+byamasu-patrick@users.noreply.github.com"}
 ]
-license = {text = "MIT"}
+license = "MIT"
+license-files = ["LICENSE"]
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "huggingface_hub>=1.28.0",
+    "tomli>=2.0; python_version < '3.11'",
+]
+keywords = ["hugging face", "jobs", "training", "machine learning", "reinforcement learning", "launcher"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 
+[project.urls]
+Homepage = "https://github.com/byamasu-patrick/rl-algorithms-lab/tree/master/hf-training-jobs"
+Source = "https://github.com/byamasu-patrick/rl-algorithms-lab/tree/master/hf-training-jobs"
+Issues = "https://github.com/byamasu-patrick/rl-algorithms-lab/issues"
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 packages = ["hf_jobs"]
+
+[tool.setuptools.package-data]
+hf_jobs = ["py.typed"]

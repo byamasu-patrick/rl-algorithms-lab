@@ -225,7 +225,7 @@ Boolean flags accept a bare flag (`--track`) or an explicit value (`--track fals
 | `--cuda` | `True` | Use CUDA when available. |
 | `--track` | `False` | Mirror metrics to Weights & Biases. |
 | `--wandb-project-name` | `dqn-atari` | W&B project. |
-| `--wandb-entity` | `None` | W&B team/entity. |
+| `--wandb-entity` | `mscsr000324-must` | W&B team/entity. |
 | `--capture-video` | `False` | Record training episodes from the first environment. |
 | `--save-model` | `False` | Save the weights, then evaluate them for 10 episodes. |
 | `--upload-model` | `False` | Push the saved model to the Hugging Face Hub. Requires `--save-model`. |

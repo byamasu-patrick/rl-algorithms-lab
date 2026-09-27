@@ -41,8 +41,16 @@ package-mode = false
 
 [tool.poetry.dependencies]
 # Launcher behind --hf-job; algorithm.py imports it unconditionally.
-hf-training-jobs = {path = "../hf-training-jobs", develop = true}
+hf-jobs-launch = {path = "../hf-training-jobs", develop = true}
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.hf-jobs]
+# Defaults for `--hf-job` (hf-jobs-launch); any of them can be overridden with the matching --hf-* flag.
+namespace = "baobabtech"
+flavor = "t4-small"
+timeout = "24h"
+# ale-py 0.8.1, which this project pins, has no wheels past Python 3.11.
+image = "python:3.11"

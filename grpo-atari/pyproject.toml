@@ -1,7 +1,7 @@
 [project]
 name = "grpo-atari"
 version = "0.1.0"
-description = "Group Relative Policy Optimization (critic-free PPO) on Atari, with the return and baseline variants from revisiting-grpo, and optional training on Hugging Face Jobs."
+description = "DQN, PPO and GRPO (critic-free PPO) on Atari with shared preprocessing, logging and evaluation, runnable one at a time or as parallel sweeps, locally or on Hugging Face Jobs."
 authors = [
     {name = "Byamasu Patrick Paul",email = "43136469+byamasu-patrick@users.noreply.github.com"}
 ]
@@ -45,8 +45,16 @@ package-mode = false
 
 [tool.poetry.dependencies]
 # Launcher behind --hf-job; algorithm.py imports it unconditionally.
-hf-training-jobs = {path = "../hf-training-jobs", develop = true}
+hf-jobs-launch = {path = "../hf-training-jobs", develop = true}
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.hf-jobs]
+# Defaults for `--hf-job` (hf-jobs-launch); any of them can be overridden with the matching --hf-* flag.
+namespace = "baobabtech"
+flavor = "t4-small"
+timeout = "24h"
+# ale-py 0.8.1, which this project pins, has no wheels past Python 3.11.
+image = "python:3.11"

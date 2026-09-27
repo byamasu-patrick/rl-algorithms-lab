@@ -1,4 +1,8 @@
-"""Atari environment factory with the standard DQN/PPO preprocessing, configured from the arguments."""
+"""Atari environment factory with the standard DQN/PPO preprocessing, configured from the arguments.
+
+Every algorithm builds its environments here, so DQN, PPO and GRPO see identical observations,
+rewards and episode boundaries.
+"""
 
 import gymnasium as gym
 from stable_baselines3.common.atari_wrappers import (
@@ -43,3 +47,33 @@ def make_env(env_id, seed, idx, capture_video, run_name, args):
         return env
 
     return thunk
+
+
+def make_vector_env(args, run_name, num_envs, capture_video=None, seed=None):
+    capture_video = args.capture_video if capture_video is None else capture_video
+    seed = args.seed if seed is None else seed
+    envs = gym.vector.SyncVectorEnv(
+        [make_env(args.env_id, seed + i, i, capture_video, run_name, args) for i in range(num_envs)]
+    )
+    assert isinstance(envs.single_action_space, gym.spaces.Discrete), "only discrete action space is supported"
+    return envs
+
+
+def finished_episodes(infos):
+    """Yield (return, length) for every game that ended on this vector step (gymnasium 0.29 layout)."""
+    if "final_info" not in infos:
+        return
+    for info in infos["final_info"]:
+        if info and "episode" in info:
+            yield float(info["episode"]["r"][0]), int(info["episode"]["l"][0])
+
+
+def log_episodes(writer, infos, global_step):
+    """Log completed games under the metric names shared by all algorithms; returns the episode returns."""
+    returns = []
+    for episodic_return, episodic_length in finished_episodes(infos):
+        print(f"global_step={global_step}, episodic_return={episodic_return}")
+        writer.add_scalar("charts/episodic_return", episodic_return, global_step)
+        writer.add_scalar("charts/episodic_length", episodic_length, global_step)
+        returns.append(episodic_return)
+    return returns
