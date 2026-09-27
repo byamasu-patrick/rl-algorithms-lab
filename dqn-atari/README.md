@@ -224,7 +224,7 @@ Boolean flags accept a bare flag (`--track`) or an explicit value (`--track fals
 | `--torch-deterministic` | `True` | Sets `torch.backends.cudnn.deterministic`. |
 | `--cuda` | `True` | Use CUDA when available. |
 | `--track` | `False` | Mirror metrics to Weights & Biases. |
-| `--wandb-project-name` | `cleanRL` | W&B project. |
+| `--wandb-project-name` | `dqn-atari` | W&B project. |
 | `--wandb-entity` | `None` | W&B team/entity. |
 | `--capture-video` | `False` | Record training episodes from the first environment. |
 | `--save-model` | `False` | Save the weights, then evaluate them for 10 episodes. |

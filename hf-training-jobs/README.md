@@ -36,7 +36,7 @@ token.
    ```
 
 Nothing else in the script changes. `launch()` removes every `--hf-*` flag from `sys.argv` before
-returning, so the script's own parser never sees them. [dqn-atari](../dqn-atari) is set up this way.
+returning, so the script's own parser never sees them. [dqn-atari](../dqn-atari) and [grpo-atari](../grpo-atari) are set up this way.
 
 ---
 

@@ -10,6 +10,96 @@ from tenacity import retry, stop_after_attempt, wait_fixed
 HUGGINGFACE_VIDEO_PREVIEW_FILE_NAME = "replay.mp4"
 HUGGINGFACE_README_FILE_NAME = "README.md"
 
+AUTHOR_NAME = "Byamasu Patrick Paul"
+AUTHOR_HF_URL = "https://huggingface.co/byamasupatrick"
+GITHUB_REPO_URL = "https://github.com/byamasu-patrick/rl-algorithms-lab"
+# Folder of this project inside the GitHub repository, e.g. "dqn-atari".
+PROJECT_DIR = Path(__file__).resolve().parent.name
+
+
+def model_card(args: argparse.Namespace, repo_id: str, algo_name: str, command: str) -> str:
+    """Model card body; `command` is the training command line, e.g. `python algorithm.py --track`."""
+    code_url = f"{GITHUB_REPO_URL}/tree/master/{PROJECT_DIR}"
+    checkpoint_file = f"{args.exp_name}.cleanrl_model"
+    return f"""
+# **{algo_name}** Agent Playing **{args.env_id}**
+
+This is a trained model of a {algo_name} agent playing {args.env_id}, trained by
+[{AUTHOR_NAME}]({AUTHOR_HF_URL}) with a from-scratch implementation. The training code is in
+[rl-algorithms-lab/{PROJECT_DIR}]({code_url}).
+
+## Get Started
+
+Clone the repository and install the project (Python 3.10 or 3.11):
+
+```bash
+git clone {GITHUB_REPO_URL}.git
+cd rl-algorithms-lab/{PROJECT_DIR}
+python3.11 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+Then download and evaluate this checkpoint from the `{PROJECT_DIR}` directory:
+
+```python
+from huggingface_hub import hf_hub_download
+
+from algorithm import make_env
+from eval import evaluate
+from src.agent import QNetwork
+
+model_path = hf_hub_download(repo_id="{repo_id}", filename="{checkpoint_file}")
+evaluate(model_path, make_env, "{args.env_id}", eval_episodes=10, run_name="eval",
+         Model=QNetwork, device="cpu", capture_video=False)
+```
+
+## Command to reproduce the training
+
+From the `{PROJECT_DIR}` directory:
+
+```bash
+{command}
+```
+
+See the [project README]({code_url}) for the implementation details and all command-line flags.
+
+## Hyperparameters
+
+```python
+{pformat(vars(args))}
+```
+
+## Acknowledgements
+
+The single-file layout and training loop follow [CleanRL](https://github.com/vwxyzjn/cleanrl)'s
+`dqn_atari.py`.
+"""
+
+
+def card_metadata(args: argparse.Namespace, algo_name: str, mean_reward: str) -> dict:
+    """Model card YAML header; `mean_reward` is formatted as "mean +/- std"."""
+    from huggingface_hub.repocard import metadata_eval_result
+
+    metadata = {
+        "tags": [
+            args.env_id,
+            "deep-reinforcement-learning",
+            "reinforcement-learning",
+            "custom-implementation",
+        ],
+    }
+    eval = metadata_eval_result(
+        model_pretty_name=algo_name,
+        task_pretty_name="reinforcement-learning",
+        task_id="reinforcement-learning",
+        metrics_pretty_name="mean_reward",
+        metrics_id="mean_reward",
+        metrics_value=mean_reward,
+        dataset_pretty_name=args.env_id,
+        dataset_id=args.env_id,
+    )
+    return {**metadata, **eval}
+
 
 @retry(stop=stop_after_attempt(10), wait=wait_fixed(3))
 def push_to_hub(
@@ -25,7 +115,7 @@ def push_to_hub(
 ):
     # Step 1: lazy import and create / read a huggingface repo
     from huggingface_hub import CommitOperationAdd, CommitOperationDelete, HfApi
-    from huggingface_hub.repocard import metadata_eval_result, metadata_save
+    from huggingface_hub.repocard import metadata_save
 
     api = HfApi()
     repo_url = api.create_repo(
@@ -47,63 +137,11 @@ def push_to_hub(
 
     # Step 3: Generate the model card
     algorithm_variant_filename = sys.argv[0].split("/")[-1]
-    model_card = f"""
-# (CleanRL) **{algo_name}** Agent Playing **{args.env_id}**
-
-This is a trained model of a {algo_name} agent playing {args.env_id}.
-The model was trained by using [CleanRL](https://github.com/vwxyzjn/cleanrl) and the most up-to-date training code can be
-found [here](https://github.com/vwxyzjn/cleanrl/blob/master/cleanrl/{args.exp_name}.py).
-
-## Get Started
-
-To use this model, please install the `cleanrl` package with the following command:
-
-```
-pip install "cleanrl[{args.exp_name}]"
-python -m cleanrl_utils.enjoy --exp-name {args.exp_name} --env-id {args.env_id}
-```
-
-Please refer to the [documentation](https://docs.cleanrl.dev/get-started/zoo/) for more detail.
-
-
-## Command to reproduce the training
-
-```bash
-curl -OL https://huggingface.co/{repo_id}/raw/main/{algorithm_variant_filename}
-curl -OL https://huggingface.co/{repo_id}/raw/main/pyproject.toml
-curl -OL https://huggingface.co/{repo_id}/raw/main/poetry.lock
-poetry install --all-extras
-python {algorithm_variant_filename} {" ".join(sys.argv[1:])}
-```
-
-# Hyperparameters
-```python
-{pformat(vars(args))}
-```
-    """
+    command = " ".join(["python", algorithm_variant_filename, *sys.argv[1:]])
     readme_path = Path(folder_path) / HUGGINGFACE_README_FILE_NAME
-    readme = model_card
-
-    # metadata
-    metadata = {}
-    metadata["tags"] = [
-        args.env_id,
-        "deep-reinforcement-learning",
-        "reinforcement-learning",
-        "custom-implementation",
-    ]
-    metadata["library_name"] = "cleanrl"
-    eval = metadata_eval_result(
-        model_pretty_name=algo_name,
-        task_pretty_name="reinforcement-learning",
-        task_id="reinforcement-learning",
-        metrics_pretty_name="mean_reward",
-        metrics_id="mean_reward",
-        metrics_value=f"{np.average(episodic_returns):.2f} +/- {np.std(episodic_returns):.2f}",
-        dataset_pretty_name=args.env_id,
-        dataset_id=args.env_id,
-    )
-    metadata = {**metadata, **eval}
+    readme = model_card(args, repo_id, algo_name, command)
+    mean_reward = f"{np.average(episodic_returns):.2f} +/- {np.std(episodic_returns):.2f}"
+    metadata = card_metadata(args, algo_name, mean_reward)
 
     with open(readme_path, "w", encoding="utf-8") as f:
         f.write(readme)
