@@ -30,6 +30,9 @@ def add_common_args(parser: ArgumentParser):
                         help="the entity (team) of wandb's project")
     parser.add_argument("--capture-video", type=bool, default=False, action=argparse.BooleanOptionalAction,
                         help="whether to capture videos of the agent performances (check out `videos` folder)")
+    parser.add_argument("--max-video-frames", type=int, default=10000,
+                        help="cap on emulator frames per recorded video (~100 KB of RAM each until the video is "
+                             "written), so a game stuck in a loop cannot exhaust memory; 0 records whole episodes")
     parser.add_argument("--num-checkpoints", type=int, default=10,
                         help="the number of checkpoints to save, set to 0 to disable")
     parser.add_argument("--checkpoint-every", type=int, default=0,

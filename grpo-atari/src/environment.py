@@ -23,7 +23,9 @@ def make_env(env_id, seed, idx, capture_video, run_name, args):
 
         if capture_video and idx == 0:
             env = gym.make(env_id, render_mode="rgb_array", **configs)
-            env = gym.wrappers.RecordVideo(env, f"videos/{run_name}")
+            # RecordVideo keeps every emulator frame in memory until the video is written; the cap stops a game
+            # stuck in a loop (up to 108k frames, ~11 GB) from killing the run.
+            env = gym.wrappers.RecordVideo(env, f"videos/{run_name}", video_length=args.max_video_frames)
         else:
             env = gym.make(env_id, **configs)
         # Outside EpisodicLifeEnv and ClipRewardEnv, so logged returns are whole-game, unclipped scores.

@@ -141,7 +141,7 @@ pip install -r requirements.txt
 ```
 
 `requirements.txt` installs the [Hugging Face Jobs launcher](../hf-training-jobs),
-`hf-jobs-launch`, from GitHub, pinned to the `hf-jobs-launch-v0.1.0` tag. To work on the launcher
+`hf-jobs-launch`, from [PyPI](https://pypi.org/project/hf-jobs-launch/), pinned to 0.2.0. To work on the launcher
 itself, run `pip install -e ../hf-training-jobs` afterwards.
 
 ### Why these versions

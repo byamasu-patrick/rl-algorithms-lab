@@ -1,0 +1,31 @@
+[project]
+name = "q-learning"
+version = "0.1.0"
+description = "Tabular Q-learning in the CleanRL single-file style: an epsilon-greedy agent over a NumPy Q-table, one temporal-difference update per transition, on the Gymnasium toy-text tasks (Taxi, FrozenLake, CliffWalking, Blackjack), with greedy evaluation of a saved table."
+authors = [
+    {name = "Byamasu Patrick Paul",email = "43136469+byamasu-patrick@users.noreply.github.com"}
+]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.10,<3.14"
+dependencies = [
+    # Pinned to match requirements.txt and the sibling Gymnasium 1.x projects
+    "gymnasium[toy-text]==1.3.0",
+    "numpy==2.5.2",
+    # only for torch.utils.tensorboard.SummaryWriter, the logger every project here uses
+    "torch==2.13.0",
+    "tensorboard==2.21.0",
+    "wandb==0.28.2",
+    "moviepy==2.2.1",
+    "pygame==2.6.1",
+]
+
+[tool.poetry]
+# This project is a script, not a distributable package: `algorithm.py` is run
+# directly and there is no importable top-level package to build. With
+# package-mode disabled, `poetry install` resolves dependencies only.
+package-mode = false
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

@@ -16,6 +16,47 @@ Written from scratch. It adopts the single-file layout popularised by CleanRL as
 a matter of convention, but is not derived from CleanRL source code.
 
 
+ddpg/
+-----
+
+Derived work. Copyright (c) 2026 Byamasu Patrick Paul for the modifications made
+in this repository; the upstream copyright holders below retain copyright in the
+code those modifications are applied to.
+
+  1. algorithm.py, eval.py and hugging_face.py follow CleanRL's
+     ddpg_continuous_action.py and its evaluation and upload helpers.
+     CleanRL (MIT), Copyright (c) 2019 CleanRL developers.
+     https://github.com/vwxyzjn/cleanrl
+
+  2. utils.py is the replay buffer from Stable-Baselines3 (MIT),
+     Copyright (c) 2019 Antonin Raffin.
+     https://github.com/DLR-RM/stable-baselines3
+
+
+ppo-rnd/
+--------
+
+Derived work. Copyright (c) 2026 Byamasu Patrick Paul for the modifications made
+in this repository; the upstream copyright holders below retain copyright in the
+code those modifications are applied to.
+
+  CleanRL (MIT), Copyright (c) 2019 CleanRL developers: algorithm.py and src/
+  follow ppo_rnd_envpool.py.
+  https://github.com/vwxyzjn/cleanrl
+
+OpenAI's random-network-distillation repository was consulted for the order in
+which intrinsic rewards are normalised; no code was copied from it.
+
+
+q-learning/
+-----------
+
+Original work. Copyright (c) 2026 Byamasu Patrick Paul.
+
+Written from scratch in the single-file layout popularised by CleanRL, which has
+no tabular Q-learning implementation to derive from.
+
+
 revisiting-grpo/
 ----------------
 

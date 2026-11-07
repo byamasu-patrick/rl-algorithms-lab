@@ -302,7 +302,7 @@ pip install -r requirements.txt
 ```
 
 `requirements.txt` installs the [Hugging Face Jobs launcher](../hf-training-jobs),
-`hf-jobs-launch`, from GitHub, pinned to the `hf-jobs-launch-v0.1.0` tag. To work on the launcher
+`hf-jobs-launch`, from [PyPI](https://pypi.org/project/hf-jobs-launch/), pinned to 0.2.0. To work on the launcher
 itself, run `pip install -e ../hf-training-jobs` afterwards.
 
 | Pin | Reason |
@@ -337,6 +337,7 @@ itself, run `pip install -e ../hf-training-jobs` afterwards.
 | `--wandb-project-name` | `grpo-atari` | W&B project. |
 | `--wandb-entity` | `mscsr000324-must` | W&B team/entity. |
 | `--capture-video` | off | Record training episodes from the first environment to `videos/{run_name}`. |
+| `--max-video-frames` | `10000` | Cap on emulator frames per recorded video (training and evaluation). The recorder holds every frame in memory (~100 KB each) until the video is written, so without a cap one evaluation game stuck in a loop can use ~11 GB and get the run killed. `0` records whole episodes. |
 | `--num-checkpoints` | `10` | Checkpoints saved over the run to `runs/{run_name}/checkpoints/`; `0` disables. |
 | `--checkpoint-every` | `0` | Env steps between checkpoints, when `--num-checkpoints` is `0`. |
 | `--checkpoint-load-path` | `None` | Initialize weights and optimizer from a checkpoint (a warm start: step counters restart at 0). |

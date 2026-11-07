@@ -8,8 +8,11 @@ The work builds up to one question: **can a critic-free method, GRPO, learn Atar
 how does it compare with DQN and PPO?** To get there, the repository has:
 
 - PPO, taken from classic control up to pixels and continuous control, so one algorithm can be
-  compared across problem types;
+  compared across problem types, and extended with Random Network Distillation for
+  hard-exploration games;
+- tabular Q-learning, the update rule DQN is built on, on its own;
 - DQN, the off-policy value-based counterpart, on classic control and on Atari;
+- DDPG, the off-policy actor-critic that carries DQN's ideas over to continuous actions;
 - a research harness asking whether the critic earns its keep in classical environments;
 - a project that trains DQN, PPO, and GRPO side by side on Breakout under identical conditions;
 - a small package that sends any of these training scripts to Hugging Face Jobs with one flag.
@@ -21,9 +24,12 @@ how does it compare with DQN and PPO?** To get there, the repository has:
 | [ppo-continuous-actions/](ppo-continuous-actions/) | PPO for **continuous control** on the PyBullet robotics tasks: a diagonal Gaussian policy plus observation and reward normalization. | Default task `HalfCheetahBulletEnv-v0` |
 | [dqn/](dqn/) | A from-scratch **Deep Q-Network**: replay buffer, target network, and epsilon-greedy exploration. The off-policy, value-based contrast to the PPO directories. | Working on classic control |
 | [dqn-atari/](dqn-atari/) | The **Nature DQN** on Atari: the paper's convolutional Q-network, frame preprocessing, evaluation, a Hub upload with a model card, and training on Hugging Face Jobs. | Full 10M-step Breakout run in progress |
+| [ddpg/](ddpg/) | **Deep Deterministic Policy Gradient** for continuous control, following CleanRL's `ddpg_continuous_action.py`: a deterministic actor, a Q(s, a) critic, Gaussian exploration noise, and Polyak-averaged target networks. MuJoCo, with `--hf-job`. | Solves Pendulum in 20k steps; default task `Hopper-v4` |
+| [q-learning/](q-learning/) | **Tabular Q-learning**: an epsilon-greedy agent over a NumPy Q-table, one TD update per transition, in the same single-file style. The update rule DQN is built on, without the network. | Near-optimal on Taxi, CliffWalking, FrozenLake and Blackjack |
+| [ppo-rnd/](ppo-rnd/) | **PPO + Random Network Distillation** for hard-exploration Atari, following CleanRL's `ppo_rnd_envpool.py`: a novelty bonus from a predictor chasing a frozen random network, with extrinsic and intrinsic value heads. | Verified end to end; default task Montezuma's Revenge, sized for `--hf-job` |
 | [revisiting-grpo/](revisiting-grpo/) | An experiment harness for asking **whether the critic is necessary**, swapping the learned value baseline for group-statistic alternatives across a large sweep. | Reproduction of published results |
 | [grpo-atari/](grpo-atari/) | **DQN vs PPO vs GRPO on Atari**: the three algorithms as interchangeable modules over one shared environment, logging, evaluation, and upload pipeline, runnable alone or as parallel sweeps. | All three implemented; GRPO follows the DeepSeekMath objective |
-| [hf-training-jobs/](hf-training-jobs/) | **`hf-jobs-launch`**: add `--hf-job` to any training command and it runs on Hugging Face Jobs instead. Installable from PyPI or GitHub. | Used by `dqn-atari/` and `grpo-atari/`; ready to publish |
+| [hf-training-jobs/](hf-training-jobs/) | **`hf-jobs-launch`**: add `--hf-job` to any training command and it runs on Hugging Face Jobs instead. Installable from [PyPI](https://pypi.org/project/hf-jobs-launch/): `pip install hf-jobs-launch`. | Used by `dqn-atari/` and `grpo-atari/`; 0.2.0 on PyPI |
 
 ---
 
@@ -60,6 +66,24 @@ how does it compare with DQN and PPO?** To get there, the repository has:
 │   ├── eval.py             # evaluation of a saved checkpoint
 │   ├── hugging_face.py     # Hub upload and model card
 │   └── README.md           # the paper, preprocessing, defaults vs the paper
+│
+├── q-learning/             # tabular Q-learning on the toy-text tasks (pip or Poetry)
+│   ├── algorithm.py        # arguments, Q-table, training loop
+│   ├── eval.py             # greedy evaluation of a saved table
+│   └── README.md           # the update, why no target network, results
+│
+├── ddpg/                   # DDPG for continuous control on MuJoCo (pip or Poetry)
+│   ├── algorithm.py        # arguments, actor and critic, training loop
+│   ├── utils.py            # replay buffer
+│   ├── eval.py             # evaluation of a checkpoint (also loads CleanRL's)
+│   ├── hugging_face.py     # optional Hub upload
+│   └── README.md           # critic target, deterministic policy gradient, targets, flags
+│
+├── ppo-rnd/                # PPO + Random Network Distillation on Atari (pip or Poetry)
+│   ├── algorithm.py        # arguments, Atari preprocessing, training loop
+│   ├── src/agent.py        # policy with extrinsic and intrinsic value heads
+│   ├── src/rnd.py          # target and predictor networks, running normalisers
+│   └── README.md           # novelty bonus, normalisation, two value heads, flags
 │
 ├── revisiting-grpo/        # critic-free baseline study (uv + Docker)
 │   ├── algorithm.py        # entry point
@@ -224,6 +248,68 @@ replay buffer needs about 28 GB of RAM once full, so pick hardware with room for
 
 Full documentation is in **[dqn-atari/README.md](dqn-atari/README.md)**.
 
+### `q-learning/`: the update rule, without the network
+
+Before DQN there is the update it approximates: move `Q(s, a)` a small step toward
+`r + γ max Q(s', ·)`. With a lookup table instead of a network, that is the whole algorithm. There is
+no replay buffer and no target network, because a table update changes one entry and nothing else.
+It uses the same flags, logging and epsilon schedule as `dqn/`, so the two read side by side.
+
+```bash
+cd q-learning
+pip install -r requirements.txt
+python algorithm.py --save-model             # Taxi-v4, about 2 minutes
+```
+
+Full documentation is in **[q-learning/README.md](q-learning/README.md)**, including results on
+Taxi, CliffWalking, FrozenLake and Blackjack.
+
+### `ddpg/`: DQN's ideas, for continuous actions
+
+DQN acts by taking the argmax over its Q values, which needs a finite list of actions. On a robot
+joint, the action is a real-valued vector and that argmax can't be computed. DDPG keeps DQN's replay
+buffer and target networks, makes the critic score a given `(state, action)` pair, and adds a second
+network, the actor, trained by gradient ascent through the critic to output the action it scores
+highest. Exploration is Gaussian noise on the actor's output instead of epsilon-greedy.
+
+Where `ppo-continuous-actions/` handles continuous actions on-policy with a stochastic Gaussian
+policy, DDPG does it off-policy with a deterministic one. It follows CleanRL's
+`ddpg_continuous_action.py`, ported to Gymnasium 1.x and this repository's conventions.
+
+```bash
+cd ddpg
+pip install -r requirements.txt
+python algorithm.py --env-id Pendulum-v1 --total-timesteps 20000 --learning-starts 1000   # minutes
+python algorithm.py --hf-job                 # Hopper-v4, 1M steps, on a Hugging Face GPU
+```
+
+Full documentation is in **[ddpg/README.md](ddpg/README.md)**: the critic target, the deterministic
+policy gradient, Polyak-averaged targets, the flag reference, what was verified, and how it differs
+from CleanRL's file.
+
+### `ppo-rnd/`: exploring where there is no reward
+
+Montezuma's Revenge gives no reward until the agent has found a key several rooms away, so PPO sees
+only zeros and learns nothing. Random Network Distillation adds a reward for novelty: a frozen,
+randomly initialised network embeds each frame, a second network is trained to predict that
+embedding, and its prediction error, high on unfamiliar frames and low on familiar ones, is paid as
+an intrinsic reward. The agent gets separate value heads for the game's reward and for novelty,
+with the novelty return carried across lost lives so that dying never looks attractive.
+
+It follows CleanRL's `ppo_rnd_envpool.py`, rebuilt on Gymnasium 1.x and `ale-py` because envpool has
+no Windows build, with OpenAI's original code followed where the two differ.
+
+```bash
+cd ppo-rnd
+pip install -r requirements.txt
+python algorithm.py --num-envs 4 --total-timesteps 100000   # see it run locally
+python algorithm.py --hf-job --save-model                   # 128 envs on a Hugging Face GPU
+```
+
+Full documentation is in **[ppo-rnd/README.md](ppo-rnd/README.md)**: the novelty bonus, reward and
+observation normalisation, the two value heads, the Atari preprocessing, and the differences from
+CleanRL's file.
+
 ### `revisiting-grpo/`: is the critic doing the work?
 
 PPO learns a value function to center its advantages. GRPO-style methods drop it, and use statistics
@@ -329,8 +415,8 @@ Each project sets its own defaults (namespace, hardware, timeout, image) in `[to
 `pyproject.toml`. `--hf-*` flags and `HF_JOBS_*` environment variables override them.
 
 ```bash
-pip install hf-jobs-launch     # from PyPI, once published
-pip install "hf-jobs-launch @ git+https://github.com/byamasu-patrick/rl-algorithms-lab.git#subdirectory=hf-training-jobs"
+pip install hf-jobs-launch     # from PyPI
+pip install "hf-jobs-launch @ git+https://github.com/byamasu-patrick/rl-algorithms-lab.git#subdirectory=hf-training-jobs"  # latest from GitHub
 ```
 
 Full documentation is in **[hf-training-jobs/README.md](hf-training-jobs/README.md)**.
@@ -365,17 +451,18 @@ Hardware sizing for the Atari runs:
 
 ## Why the environments are separate
 
-| | `ppo/` | `ppo-atari/` | `ppo-continuous-actions/` | `dqn/` | `dqn-atari/` | `grpo-atari/` | `revisiting-grpo/` |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| Installed via | Poetry | Poetry or pip | Poetry | Poetry or pip | pip or Poetry | pip or Poetry | uv |
-| Python | 3.10–3.13 | 3.10–3.13 | 3.10–3.13 | 3.10–3.13 | **3.10–3.11** | **3.10–3.11** | 3.10 |
-| PyTorch | 2.13.0 | 2.13.0 | 2.13.0 | 2.13.0 | 2.13.0 | 2.13.0 | 2.4.1 |
-| Gymnasium | 1.3.0 | 1.3.0 | 1.3.0 | 1.3.0 | **0.29.1** | **0.29.1** | **0.29.1** (plus `gym` 0.23.1) |
-| Also needs | | `ale-py` 0.12, `opencv-python` | `pybullet-envs-gymnasium` | `huggingface_hub` | `ale-py` 0.8.1, SB3 2.3.2, `hf-jobs-launch` | `ale-py` 0.8.1, SB3 2.3.2, `hf-jobs-launch` | |
+| | `ppo/` | `ppo-atari/` | `ppo-continuous-actions/` | `dqn/` | `dqn-atari/` | `ddpg/` | `q-learning/` | `ppo-rnd/` | `grpo-atari/` | `revisiting-grpo/` |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Installed via | Poetry | Poetry or pip | Poetry | Poetry or pip | pip or Poetry | pip or Poetry | pip or Poetry | pip or Poetry | pip or Poetry | uv |
+| Python | 3.10–3.13 | 3.10–3.13 | 3.10–3.13 | 3.10–3.13 | **3.10–3.11** | 3.10–3.13 | 3.10–3.13 | 3.10–3.13 | **3.10–3.11** | 3.10 |
+| PyTorch | 2.13.0 | 2.13.0 | 2.13.0 | 2.13.0 | 2.13.0 | 2.13.0 | 2.13.0 (logging only) | 2.13.0 | 2.13.0 | 2.4.1 |
+| Gymnasium | 1.3.0 | 1.3.0 | 1.3.0 | 1.3.0 | **0.29.1** | 1.3.0 | 1.3.0 | 1.3.0 | **0.29.1** | **0.29.1** (plus `gym` 0.23.1) |
+| Also needs | | `ale-py` 0.12, `opencv-python` | `pybullet-envs-gymnasium` | `huggingface_hub` | `ale-py` 0.8.1, SB3 2.3.2, `hf-jobs-launch` | `mujoco` 4.0, `hf-jobs-launch` | `pygame` | `ale-py` 0.12, SB3 2.9.0, `hf-jobs-launch` | `ale-py` 0.8.1, SB3 2.3.2, `hf-jobs-launch` | |
 
 There are two Gymnasium generations here, and they cannot share an environment.
 
-The four classic-control and current-Atari directories track **Gymnasium 1.x**. They could share one
+The classic-control, toy-text, MuJoCo and current-Atari directories (`ppo/`, `ppo-atari/`,
+`ppo-continuous-actions/`, `dqn/`, `q-learning/`, `ddpg/` and `ppo-rnd/`) track **Gymnasium 1.x**. They could share one
 environment, since each only adds its own simulator or tooling on top, but they are kept apart so
 each stays installable on its own.
 
